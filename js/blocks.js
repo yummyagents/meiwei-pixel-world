@@ -57,6 +57,13 @@ export const TILES = Object.freeze({
   LAVA: 43,
   COPPER: 44,
   NEON: 45,
+  AMETHYST: 46,
+  CALCITE: 47,
+  AMETHYST_CRYSTAL: 48,
+  LANTERN: 49,
+  COBWEB: 50,
+  OBSIDIAN: 51,
+  GOLD: 52,
 });
 
 export const BLOCK_IDS = Object.freeze({
@@ -103,6 +110,13 @@ export const BLOCK_IDS = Object.freeze({
   LAVA: 40,
   COPPER: 41,
   NEON: 42,
+  AMETHYST: 43,
+  CALCITE: 44,
+  AMETHYST_CRYSTAL: 45,
+  LANTERN: 46,
+  COBWEB: 47,
+  OBSIDIAN: 48,
+  GOLD: 49,
 });
 
 /**
@@ -504,6 +518,73 @@ export const BLOCKS = Object.freeze({
     bright: true,
     tiles: { top: TILES.NEON, bottom: TILES.NEON, side: TILES.NEON },
   },
+  [BLOCK_IDS.AMETHYST]: {
+    id: BLOCK_IDS.AMETHYST,
+    key: 'amethyst',
+    name: '紫水晶块',
+    icon: '💜',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.AMETHYST, bottom: TILES.AMETHYST, side: TILES.AMETHYST },
+  },
+  [BLOCK_IDS.CALCITE]: {
+    id: BLOCK_IDS.CALCITE,
+    key: 'calcite',
+    name: '方解石',
+    icon: '🤍',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.CALCITE, bottom: TILES.CALCITE, side: TILES.CALCITE },
+  },
+  [BLOCK_IDS.AMETHYST_CRYSTAL]: {
+    id: BLOCK_IDS.AMETHYST_CRYSTAL,
+    key: 'amethyst_crystal',
+    name: '紫水晶晶簇',
+    icon: '🔮',
+    solid: false,
+    transparent: true,
+    cross: true,
+    bright: true,
+    tiles: { top: TILES.AMETHYST_CRYSTAL, bottom: TILES.AMETHYST_CRYSTAL, side: TILES.AMETHYST_CRYSTAL },
+  },
+  [BLOCK_IDS.LANTERN]: {
+    id: BLOCK_IDS.LANTERN,
+    key: 'lantern',
+    name: '暖光灯笼',
+    icon: '🏮',
+    solid: false,
+    transparent: false,
+    bright: true,
+    tiles: { top: TILES.LANTERN, bottom: TILES.LANTERN, side: TILES.LANTERN },
+  },
+  [BLOCK_IDS.COBWEB]: {
+    id: BLOCK_IDS.COBWEB,
+    key: 'cobweb',
+    name: '蜘蛛网',
+    icon: '🕸️',
+    solid: false,
+    transparent: true,
+    cross: true,
+    tiles: { top: TILES.COBWEB, bottom: TILES.COBWEB, side: TILES.COBWEB },
+  },
+  [BLOCK_IDS.OBSIDIAN]: {
+    id: BLOCK_IDS.OBSIDIAN,
+    key: 'obsidian',
+    name: '黑曜石',
+    icon: '⬛',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.OBSIDIAN, bottom: TILES.OBSIDIAN, side: TILES.OBSIDIAN },
+  },
+  [BLOCK_IDS.GOLD]: {
+    id: BLOCK_IDS.GOLD,
+    key: 'gold',
+    name: '金块',
+    icon: '🟨',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.GOLD, bottom: TILES.GOLD, side: TILES.GOLD },
+  },
 });
 
 /** 给背包按固定顺序展示的基础方块。 */
@@ -516,6 +597,13 @@ export const CREATIVE_BLOCKS = Object.freeze([
   BLOCK_IDS.LAVA,
   BLOCK_IDS.COPPER,
   BLOCK_IDS.NEON,
+  BLOCK_IDS.AMETHYST,
+  BLOCK_IDS.CALCITE,
+  BLOCK_IDS.AMETHYST_CRYSTAL,
+  BLOCK_IDS.LANTERN,
+  BLOCK_IDS.COBWEB,
+  BLOCK_IDS.OBSIDIAN,
+  BLOCK_IDS.GOLD,
   BLOCK_IDS.WOOD,
   BLOCK_IDS.CHERRY_WOOD,
   BLOCK_IDS.LEAVES,
@@ -595,6 +683,13 @@ export const BLOCK_COLORS = Object.freeze({
   [BLOCK_IDS.LAVA]: '#ff6a2d',
   [BLOCK_IDS.COPPER]: '#c77738',
   [BLOCK_IDS.NEON]: '#55f4e0',
+  [BLOCK_IDS.AMETHYST]: '#a85be4',
+  [BLOCK_IDS.CALCITE]: '#e8e0d2',
+  [BLOCK_IDS.AMETHYST_CRYSTAL]: '#d79bff',
+  [BLOCK_IDS.LANTERN]: '#ffb75e',
+  [BLOCK_IDS.COBWEB]: '#e9e9e9',
+  [BLOCK_IDS.OBSIDIAN]: '#17101f',
+  [BLOCK_IDS.GOLD]: '#f4c542',
 });
 
 export function getBlockColor(id) {
@@ -667,7 +762,7 @@ export function getBlockIconDataUrl(blockId) {
  * 画一张 8×4 格的像素图集。
  * 使用 Canvas 生成，不需要下载贴图，部署后不会出现 404。
  */
-export function createBlockAtlasCanvas() {
+export function createBlockAtlasCanvas(themeId = 'classic') {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_COLS * TILE_SIZE;
   canvas.height = ATLAS_ROWS * TILE_SIZE;
@@ -683,7 +778,45 @@ export function createBlockAtlasCanvas() {
     ctx.restore();
   }
 
+  applyAtlasThemeGrade(ctx, themeId);
   return canvas;
+}
+
+function applyAtlasThemeGrade(ctx, themeId) {
+  if (themeId !== 'sakura' && themeId !== 'neon') return;
+  const image = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const data = image.data;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+    if (themeId === 'sakura') {
+      const greenish = g > r * 1.12 && g > b * 1.12;
+      if (greenish) {
+        r = Math.min(255, r + (g - r) * 0.48);
+        b = Math.min(255, b + (g - b) * 0.22);
+        g = Math.min(255, g * 0.94 + 6);
+      } else {
+        r = Math.min(255, r * 1.05 + 8);
+        g = Math.min(255, g * 1.01 + 4);
+        b = Math.min(255, b * 1.04 + 6);
+      }
+    } else {
+      // 深岩霓虹：压暗暖色，拉高高光和青蓝。
+      r = Math.min(255, r * 0.68 + 4);
+      g = Math.min(255, g * 0.94 + 8);
+      b = Math.min(255, b * 1.18 + 18);
+      if (g > r * 1.15 && g > b * 0.82) {
+        r = Math.min(255, r * 0.75);
+        b = Math.min(255, b + 18);
+      }
+    }
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+  }
+  ctx.putImageData(image, 0, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1216,6 +1349,85 @@ function drawTile(ctx, tile) {
       ctx.fillRect(6, 6, 4, 4);
       ctx.fillStyle = '#f4b8ff';
       ctx.fillRect(7, 1, 2, 14);
+      break;
+
+    case TILES.AMETHYST:
+      fill(ctx, '#7d3fb0');
+      speckle(ctx, ['#a95ce0', '#5d2a89', '#c98fff', '#8b4ac4'], 1601, 64);
+      ctx.fillStyle = 'rgba(243, 211, 255, 0.9)';
+      ctx.fillRect(3, 3, 3, 2);
+      ctx.fillRect(9, 10, 4, 2);
+      ctx.fillRect(12, 3, 2, 2);
+      break;
+
+    case TILES.CALCITE:
+      fill(ctx, '#ded8cb');
+      speckle(ctx, ['#f2eee5', '#bbb4a7', '#d2c9bb', '#9e978b'], 1701, 40);
+      ctx.fillStyle = '#f7f3ea';
+      ctx.fillRect(2, 2, 5, 1);
+      ctx.fillRect(9, 12, 5, 1);
+      break;
+
+    case TILES.AMETHYST_CRYSTAL:
+      ctx.clearRect(0, 0, 16, 16);
+      ctx.fillStyle = '#d99bff';
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(13, 5);
+      ctx.lineTo(10, 15);
+      ctx.lineTo(5, 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f4d8ff';
+      ctx.beginPath();
+      ctx.moveTo(8, 2);
+      ctx.lineTo(11, 6);
+      ctx.lineTo(9, 12);
+      ctx.lineTo(7, 7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#9c51d0';
+      ctx.fillRect(3, 10, 2, 4);
+      ctx.fillRect(12, 8, 1, 3);
+      break;
+
+    case TILES.LANTERN:
+      ctx.clearRect(0, 0, 16, 16);
+      ctx.fillStyle = '#5b3520';
+      ctx.fillRect(5, 0, 6, 16);
+      ctx.fillStyle = '#ffbd57';
+      ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#fff0a8';
+      ctx.fillRect(5, 4, 6, 8);
+      ctx.fillStyle = '#7b4824';
+      ctx.fillRect(4, 2, 1, 12);
+      ctx.fillRect(11, 2, 1, 12);
+      ctx.fillRect(2, 7, 12, 1);
+      break;
+
+    case TILES.COBWEB:
+      ctx.clearRect(0, 0, 16, 16);
+      ctx.strokeStyle = 'rgba(238, 238, 238, 0.86)';
+      ctx.lineWidth = 1;
+      for (const [x1, y1, x2, y2] of [[2, 0, 14, 16], [14, 0, 2, 16], [0, 2, 16, 14], [0, 14, 16, 2], [8, 0, 8, 16], [0, 8, 16, 8]]) {
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+      break;
+
+    case TILES.OBSIDIAN:
+      fill(ctx, '#17101f');
+      speckle(ctx, ['#2c1d40', '#09070c', '#4a2c6b', '#22152f'], 1801, 45);
+      ctx.fillStyle = '#6a3ca3';
+      ctx.fillRect(3, 3, 2, 1);
+      ctx.fillRect(11, 10, 2, 1);
+      break;
+
+    case TILES.GOLD:
+      fill(ctx, '#d7a927');
+      speckle(ctx, ['#ffe36a', '#a97b1f', '#ffd75b', '#8d651a'], 1901, 38);
+      ctx.fillStyle = '#fff1a0';
+      ctx.fillRect(2, 2, 5, 2);
+      ctx.fillRect(9, 11, 4, 2);
       break;
 
     case TILES.LAVA:

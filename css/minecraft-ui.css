@@ -439,3 +439,16 @@ body[data-visual-theme='neon'] .hotbar {
   font-size: 11px;
   font-weight: 700;
 }
+
+body[data-visual-theme='sakura'] .game-color-wash {
+  background:
+    radial-gradient(ellipse at center, transparent 48%, rgba(113, 46, 81, 0.22) 100%),
+    linear-gradient(180deg, rgba(255, 203, 224, 0.08), transparent 30%);
+}
+
+body[data-visual-theme='neon'] .game-color-wash {
+  background:
+    radial-gradient(ellipse at center, transparent 42%, rgba(2, 13, 25, 0.38) 100%),
+    repeating-linear-gradient(0deg, rgba(0, 20, 28, 0.06) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(25, 253, 228, 0.04), transparent 32%);
+}

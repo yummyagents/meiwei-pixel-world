@@ -240,8 +240,12 @@ export class AnimalManager {
       [-2.5, 0.5],
       [2.5, 0.5],
       [-0.5, 2.5],
+      [3.5, 0.5],
+      [-4.5, -1.5],
+      [4.5, -1.5],
     ];
-    for (const [ox, oz] of offsets) {
+    for (let variant = 0; variant < offsets.length; variant += 1) {
+      const [ox, oz] = offsets[variant];
       const x = village.x + ox;
       const z = village.z + oz;
       const groundY = village.groundY;
@@ -254,6 +258,7 @@ export class AnimalManager {
         type: 'villager',
         spot,
         random: this.random,
+        variant,
       });
       this.animals.push(animal);
       this.group.add(animal.group);
@@ -410,7 +415,7 @@ export class AnimalManager {
     return mesh;
   }
 
-  _buildModel(type) {
+  _buildModel(type, variant = 0) {
     const model = new THREE.Group();
     const legs = [];
 
@@ -512,12 +517,22 @@ export class AnimalManager {
         legs.push(leg);
       });
     } else if (type === 'villager') {
-      this._part(model, 0.56, 0.78, 0.38, '#7a5b3e', 0, 0.92, 0);
+      const villagerPalettes = [
+        { shirt: '#7a5b3e', hat: '#5f4931', apron: '#d8c29a' },
+        { shirt: '#4f7d68', hat: '#3f5f4d', apron: '#e8e0c8' },
+        { shirt: '#6a5688', hat: '#49365d', apron: '#d8c8d8' },
+        { shirt: '#8f5a4f', hat: '#623b35', apron: '#f0d9bf' },
+        { shirt: '#526f91', hat: '#354a65', apron: '#dce7f0' },
+        { shirt: '#7a6b3e', hat: '#5d502c', apron: '#eee1b8' },
+      ];
+      const palette = villagerPalettes[variant % villagerPalettes.length];
+      this._part(model, 0.56, 0.78, 0.38, palette.shirt, 0, 0.92, 0);
+      this._part(model, 0.32, 0.3, 0.04, palette.apron, 0, 0.92, 0.2);
       this._part(model, 0.48, 0.48, 0.48, '#c58f64', 0, 1.52, 0);
       this._part(model, 0.12, 0.18, 0.13, '#b77d55', 0, 1.47, 0.29);
       this._part(model, 0.07, 0.07, 0.035, '#302925', -0.11, 1.58, 0.245);
       this._part(model, 0.07, 0.07, 0.035, '#302925', 0.11, 1.58, 0.245);
-      this._part(model, 0.5, 0.16, 0.5, '#5f4931', 0, 1.78, 0);
+      this._part(model, 0.5, 0.16, 0.5, palette.hat, 0, 1.78, 0);
       this._part(model, 0.14, 0.52, 0.14, '#c58f64', -0.34, 0.95, 0);
       this._part(model, 0.14, 0.52, 0.14, '#c58f64', 0.34, 0.95, 0);
       const legPositions = [
@@ -587,12 +602,13 @@ export class AnimalManager {
 }
 
 class Animal {
-  constructor({ manager, type, spot, home = null, yaw = null, random }) {
+  constructor({ manager, type, spot, home = null, yaw = null, random, variant = 0 }) {
     this.manager = manager;
     this.world = manager.world;
     this.type = type;
     this.data = ANIMAL_TYPES[type];
     this.random = random;
+    this.variant = variant;
     this.position = new THREE.Vector3(spot.x, spot.y, spot.z);
     this.home = home
       ? new THREE.Vector3(
@@ -612,7 +628,7 @@ class Animal {
     this._stuckTime = 0;
     this._movementThisThink = 0;
 
-    const built = manager._buildModel(type);
+    const built = manager._buildModel(type, this.variant || 0);
     this.model = built.model;
     this.legs = built.legs;
 

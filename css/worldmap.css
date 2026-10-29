@@ -180,3 +180,95 @@
     font-size: 10px;
   }
 }
+
+.worldmap-body {
+  display: grid;
+  grid-template-columns: minmax(0, 500px) 190px;
+  gap: 12px;
+  align-items: stretch;
+  justify-content: center;
+  margin-bottom: 9px;
+}
+
+.worldmap-body .worldmap-stage {
+  margin: 0;
+  width: 100%;
+}
+
+.worldmap-places {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px;
+  border: 2px solid rgba(59, 52, 82, 0.5);
+  border-radius: 2px;
+  background: #f1e8d8;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+}
+
+.worldmap-places > strong {
+  color: #554b3e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#worldmap-places {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.worldmap-place {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 5px;
+  align-items: center;
+  padding: 6px 7px;
+  border: 1px solid #cfc3b0;
+  border-radius: 2px;
+  background: #fffaf0;
+  color: #4b4337;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.worldmap-place.is-nearest {
+  border-color: #6d5e45;
+  background: #fff2bd;
+  box-shadow: inset 0 0 0 1px #fff;
+}
+
+.worldmap-place b {
+  display: block;
+  font-size: 12px;
+}
+
+.worldmap-place small {
+  display: block;
+  color: #857765;
+  font-size: 10px;
+}
+
+.worldmap-place-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(70, 58, 44, 0.24);
+  border-radius: 1px;
+  background: #e9ddca;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .worldmap-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .worldmap-places {
+    min-height: 0;
+    max-height: 132px;
+  }
+}

@@ -105,6 +105,78 @@ export class WorldMap {
     this.baseStats = { highestMountain: highest };
   }
 
+  _renderPlaces() {
+    const container = document.getElementById('worldmap-places');
+    if (!container || !this.world) return [];
+    const px = this.player?.position?.x ?? this.spawn.x;
+    const pz = this.player?.position?.z ?? this.spawn.z;
+    const directions = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+    const directionOf = (x, z) => {
+      const angle = Math.atan2(x - px, -(z - pz));
+      const index = Math.round(((angle + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
+      return directions[index];
+    };
+    const points = [];
+    if (this.world.caveEntrance) {
+      points.push({
+        icon: '⛏',
+        label: '洞穴入口',
+        x: this.world.caveEntrance.x,
+        z: this.world.caveEntrance.z,
+      });
+    }
+    for (const mine of this.world.mineshafts || []) {
+      const point = mine.entrance || mine;
+      points.push({ icon: '🪜', label: '废弃矿井', x: point.x, z: point.z });
+    }
+    const geodes = (this.world.geodes || []).slice().sort(
+      (a, b) => Math.hypot(a.x - px, a.z - pz) - Math.hypot(b.x - px, b.z - pz),
+    );
+    if (geodes[0]) {
+      points.push({ icon: '💎', label: '最近的紫水晶洞', x: geodes[0].x, z: geodes[0].z });
+    }
+    if (this.world.ruinedPortal) {
+      points.push({
+        icon: '🌀',
+        label: '神秘传送门',
+        x: this.world.ruinedPortal.x,
+        z: this.world.ruinedPortal.z,
+      });
+    }
+    if (this.world.techCity) {
+      points.push({
+        icon: '⚙',
+        label: '美味科技城',
+        x: this.world.techCity.x,
+        z: this.world.techCity.z,
+      });
+    }
+    for (const village of this.world.villageSpots || []) {
+      points.push({ icon: '🏠', label: '村庄', x: village.x, z: village.z });
+    }
+    points.forEach((point) => {
+      point.distance = Math.hypot(point.x - px, point.z - pz);
+      point.direction = directionOf(point.x, point.z);
+    });
+    points.sort((a, b) => a.distance - b.distance);
+    const shown = points.slice(0, 7);
+    container.innerHTML = shown
+      .map(
+        (point, index) => `
+        <div class="worldmap-place ${index === 0 ? 'is-nearest' : ''}">
+          <span class="worldmap-place-icon" aria-hidden="true">${point.icon}</span>
+          <span><b>${point.label}</b><small>${point.direction} · ${Math.max(1, Math.round(point.distance))} 格</small></span>
+        </div>
+      `,
+      )
+      .join('');
+    return shown.map((point) => ({
+      label: point.label,
+      distance: Math.round(point.distance),
+      direction: point.direction,
+    }));
+  }
+
   render() {
     if (!this.ctx) return null;
     this._buildBase();
@@ -155,6 +227,12 @@ export class WorldMap {
     if (this.world.techCity) {
       addMarker(this.world.techCity.x, this.world.techCity.z, '#8fffe3', 8);
     }
+    for (const geode of this.world.geodes || []) {
+      addMarker(geode.x, geode.z, '#d79bff', 6);
+    }
+    if (this.world.ruinedPortal) {
+      addMarker(this.world.ruinedPortal.x, this.world.ruinedPortal.z, '#d38bff', 7);
+    }
     for (const mine of this.world.mineshafts || []) {
       const point = mine.entrance || mine;
       addMarker(point.x, point.z, '#c79a66', 5);
@@ -192,6 +270,12 @@ export class WorldMap {
     };
     if (this.world.caveEntrance) {
       labelMarker(this.world.caveEntrance.x, this.world.caveEntrance.z, '洞穴入口', '#ffd85e', -10, -25);
+    }
+    for (const geode of this.world.geodes || []) {
+      labelMarker(geode.x, geode.z, '紫水晶洞', '#d79bff', 10, -22);
+    }
+    if (this.world.ruinedPortal) {
+      labelMarker(this.world.ruinedPortal.x, this.world.ruinedPortal.z, '神秘传送门', '#d38bff', -10, 18);
     }
     for (const mine of this.world.mineshafts || []) {
       const point = mine.entrance || mine;
@@ -269,8 +353,11 @@ export class WorldMap {
     ctx.textAlign = 'right';
     ctx.fillText('范围约 900 × 900 格', size - 14, size - 28);
 
+    const places = this._renderPlaces();
+
     this.lastStats = {
       markers: markers.length,
+      places,
       highestMountain: highest,
       range: MAP_RANGE,
       resolution: MAP_RESOLUTION,

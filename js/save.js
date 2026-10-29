@@ -90,7 +90,7 @@ function normalizeModifications(raw) {
 
 function normalizeAnimals(raw) {
   if (!Array.isArray(raw)) return [];
-  if (raw.length > 12) return null;
+  if (raw.length > 20) return null;
   const animals = [];
   for (const entry of raw) {
     if (!entry || !ANIMAL_IDS.has(entry.type)) return null;

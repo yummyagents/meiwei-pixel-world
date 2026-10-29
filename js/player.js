@@ -874,8 +874,8 @@ export class Player {
     };
 
     if (!this.pointerLockFailed && !this._lockAttemptInFlight) {
-      // 第一次点击先用来看鼠标；锁定失败后就直接进入拖动备用模式。
-      this._pendingCanvasClick.suppress = true;
+      // 请求锁定鼠标，但不要把这次点击吞掉：
+      // 锁定时在 mouseup 处理，锁定失败时仍按普通点击处理。
       this.requestPointerLock();
     }
   }
@@ -886,6 +886,9 @@ export class Player {
     if (document.pointerLockElement === this.domElement) {
       const movementX = event.movementX || 0;
       const movementY = event.movementY || 0;
+      if (this._pendingCanvasClick) {
+        this._pendingCanvasClick.moved += Math.abs(movementX) + Math.abs(movementY);
+      }
       this._applyLook(movementX, movementY);
       return;
     }
@@ -912,14 +915,24 @@ export class Player {
   }
 
   _handlePointerUp(event) {
+    const pending = this._pendingCanvasClick;
+    if (
+      document.pointerLockElement === this.domElement &&
+      pending &&
+      !pending.suppress &&
+      pending.button === event.button &&
+      pending.moved < 8 &&
+      performance.now() - pending.startedAt < 650
+    ) {
+      this._callbacks.onBlockAction(pending.button);
+    }
+
     if (document.pointerLockElement === this.domElement) {
       this._dragging = false;
       this._lastMouse = null;
       this._pendingCanvasClick = null;
       return;
     }
-
-    const pending = this._pendingCanvasClick;
     if (
       pending &&
       !pending.suppress &&
@@ -945,7 +958,6 @@ export class Player {
       this.pointerLockFailed = false;
       this._dragging = false;
       this._lastMouse = null;
-      this._pendingCanvasClick = null;
     }
     this._callbacks.onPointerLockChange({
       locked: this.isPointerLocked,

@@ -224,6 +224,8 @@ window.__MEIWEI_DEBUG__ = {
             mineshafts: (state.game.world.mineshafts || []).slice(0, 16),
             waterfalls: (state.game.world.waterfalls || []).slice(0, 8),
             techCity: state.game.world.techCity || null,
+            geodes: (state.game.world.geodes || []).slice(0, 12),
+            ruinedPortal: state.game.world.ruinedPortal || null,
             inTechCity: state.game.world.isInTechCity(
               state.game.player.position.x,
               state.game.player.position.z,
@@ -835,9 +837,10 @@ function updateWaypoint(game) {
   }
   const px = game.player.position.x;
   const pz = game.player.position.z;
-  const targets = [];
+  const entranceTargets = [];
+  const geodeTargets = [];
   if (game.world.caveEntrance) {
-    targets.push({
+    entranceTargets.push({
       label: '⛏ 洞穴入口',
       x: game.world.caveEntrance.x,
       z: game.world.caveEntrance.z,
@@ -845,17 +848,37 @@ function updateWaypoint(game) {
   }
   for (const mine of game.world.mineshafts || []) {
     const entrance = mine.entrance || mine;
-    targets.push({ label: '🪜 废弃矿井', x: entrance.x, z: entrance.z });
+    entranceTargets.push({ label: '🪜 废弃矿井', x: entrance.x, z: entrance.z });
   }
-  let nearest = null;
-  let nearestDistance = 42;
-  for (const target of targets) {
-    const distance = Math.hypot(target.x - px, target.z - pz);
-    if (distance < nearestDistance) {
-      nearest = target;
-      nearestDistance = distance;
+  for (const geode of game.world.geodes || []) {
+    geodeTargets.push({ label: '💎 紫水晶洞', x: geode.x, z: geode.z });
+  }
+  if (game.world.ruinedPortal) {
+    geodeTargets.push({
+      label: '🌀 神秘传送门',
+      x: game.world.ruinedPortal.x,
+      z: game.world.ruinedPortal.z,
+    });
+  }
+  const nearestOf = (targets, maxDistance = 42) => {
+    let best = null;
+    let bestDistance = maxDistance;
+    for (const target of targets) {
+      const distance = Math.hypot(target.x - px, target.z - pz);
+      if (distance < bestDistance) {
+        best = target;
+        bestDistance = distance;
+      }
     }
-  }
+    return best ? { ...best, distance: bestDistance } : null;
+  };
+  const primary = nearestOf(entranceTargets, 42);
+  const geode = nearestOf(geodeTargets, 42);
+  // 洞穴/矿井是主要目标；只有紫水晶洞明显更近时才切换过去。
+  const nearest = primary && (!geode || primary.distance <= 15 || primary.distance <= geode.distance)
+    ? primary
+    : geode || primary;
+  const nearestDistance = nearest?.distance || 0;
   if (!nearest) {
     ui.setWaypoint(null);
     return;

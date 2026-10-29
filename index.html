@@ -571,10 +571,16 @@
         <div class="eyebrow-badge"><span>🧭</span> 探险地图</div>
         <h2 id="worldmap-title">整个世界的地貌</h2>
         <p>从高处看看出生点周围的地形、群系和重要地点吧。点右上角 × 或按 M 关闭。</p>
-        <div class="worldmap-stage">
-          <canvas id="worldmap-canvas" width="640" height="640" aria-label="出生点周围的地貌地图"></canvas>
-          <div id="worldmap-loading" class="worldmap-loading" aria-live="polite">正在绘制地图……</div>
-          <div class="worldmap-compass" aria-hidden="true">N</div>
+        <div class="worldmap-body">
+          <div class="worldmap-stage">
+            <canvas id="worldmap-canvas" width="640" height="640" aria-label="出生点周围的地貌地图"></canvas>
+            <div id="worldmap-loading" class="worldmap-loading" aria-live="polite">正在绘制地图……</div>
+            <div class="worldmap-compass" aria-hidden="true">N</div>
+          </div>
+          <aside class="worldmap-places" aria-label="地图上的重要地点">
+            <strong>附近地点</strong>
+            <div id="worldmap-places"></div>
+          </aside>
         </div>
 
         <div class="worldmap-legend" aria-label="地图图例">
@@ -595,6 +601,8 @@
             <span><i class="map-pin" style="--pin:#7fe7ff"></i>瀑布</span>
             <span><i class="map-pin" style="--pin:#8fffe3"></i>美味科技城</span>
             <span><i class="map-pin" style="--pin:#c79a66"></i>废弃矿井</span>
+            <span><i class="map-pin" style="--pin:#d79bff"></i>紫水晶洞</span>
+            <span><i class="map-pin" style="--pin:#d38bff"></i>神秘传送门</span>
             <span><i class="map-triangle" style="--pin:#e8eef3"></i>雪山</span>
             <span><i class="map-pin" style="--pin:#ffffff"></i>风车</span>
           </div>

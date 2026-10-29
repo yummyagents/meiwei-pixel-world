@@ -192,6 +192,10 @@ export class World {
     this.villageSpots = [];
     this.mineshafts = [];
     this.waterfalls = [];
+    this.geodes = [];
+    this.geodeLights = [];
+    this.mineLights = [];
+    this.geodeVisuals = [];
     this.villageSpot = this.findVillageSpot(this.spawn);
     this.exclusionZones.push({
       x: this.villageSpot.x,
@@ -204,8 +208,10 @@ export class World {
     this.waterfallSpot = this.findWaterfallSpot(this.spawn);
     if (this.waterfallSpot) this._planWaterfall(this.waterfallSpot);
     this.techCity = this._planTechCity(this.waterfallSpot);
+    this.portalSpot = this.findPortalSpot(this.spawn);
+    this.ruinedPortal = this.portalSpot ? this._planRuinedPortal(this.portalSpot) : null;
 
-    this.atlasCanvas = createBlockAtlasCanvas();
+    this.atlasCanvas = createBlockAtlasCanvas(visualTheme?.id);
     this.atlasTexture = new THREE.CanvasTexture(this.atlasCanvas);
     this.atlasTexture.magFilter = THREE.NearestFilter;
     this.atlasTexture.minFilter = THREE.NearestFilter;
@@ -239,6 +245,12 @@ export class World {
     this.visualTheme = theme || null;
     const tint = theme?.worldTint || '#ffffff';
     const waterTint = theme?.waterTint || '#ffffff';
+    if (this.atlasTexture && this.atlasCanvas) {
+      const nextAtlas = createBlockAtlasCanvas(theme?.id || 'classic');
+      this.atlasCanvas = nextAtlas;
+      this.atlasTexture.image = nextAtlas;
+      this.atlasTexture.needsUpdate = true;
+    }
     this.solidMaterial.color.set(tint);
     this.transparentMaterial.color.set(waterTint);
     if (this.waterfallMaterial) this.waterfallMaterial.color.set(waterTint);
@@ -1043,12 +1055,70 @@ export class World {
     for (const [index, id] of blocks) data[index] = id;
   }
 
+
+  findPortalSpot(spawn) {
+    for (let radius = 18; radius <= 42; radius += 3) {
+      for (let i = 0; i < 28; i += 1) {
+        const angle = (i / 28) * Math.PI * 2;
+        const x = Math.round(spawn.x + Math.cos(angle) * radius);
+        const z = Math.round(spawn.z + Math.sin(angle) * radius);
+        const biome = this.biomeAt(x, z);
+        if (biome !== 'plains' && biome !== 'cherry' && biome !== 'jungle') continue;
+        if (this._isExcluded(x, z)) continue;
+        const h = this.heightAt(x, z);
+        if (h < 11 || h > 17) continue;
+        let flat = true;
+        for (let ox = -3; ox <= 3 && flat; ox += 1) {
+          for (let oz = -3; oz <= 3; oz += 1) {
+            if (Math.abs(this.heightAt(x + ox, z + oz) - h) > 2) { flat = false; break; }
+          }
+        }
+        if (flat) return { x, z, baseY: h };
+      }
+    }
+    return null;
+  }
+
+  _planRuinedPortal(spot) {
+    const put = (x, y, z, id) => this._queueStructureBlock(x, y, z, id);
+    const cx = Math.floor(spot.x);
+    const cz = Math.floor(spot.z);
+    const baseY = Math.max(spot.baseY, this.heightAt(cx, cz));
+    // 平整一块遗迹地面。
+    for (let dx = -5; dx <= 5; dx += 1) {
+      for (let dz = -4; dz <= 4; dz += 1) {
+        const h = this.heightAt(cx + dx, cz + dz);
+        for (let y = h + 1; y <= baseY + 8; y += 1) put(cx + dx, y, cz + dz, BLOCK_IDS.AIR);
+        put(cx + dx, baseY, cz + dz, (dx + dz) % 4 === 0 ? BLOCK_IDS.MOSSY_STONE : BLOCK_IDS.STONE_BRICKS);
+      }
+    }
+    // 黑曜石传送门框架，旁边有金块、熔岩池和破损的台阶。
+    for (const dx of [-2, 2]) {
+      for (let y = baseY + 1; y <= baseY + 4; y += 1) put(cx + dx, y, cz, BLOCK_IDS.OBSIDIAN);
+      put(cx + dx, baseY + 5, cz, BLOCK_IDS.OBSIDIAN);
+    }
+    for (let dx = -2; dx <= 2; dx += 1) put(cx + dx, baseY + 5, cz, BLOCK_IDS.OBSIDIAN);
+    for (const dx of [-1, 0, 1]) {
+      for (let y = baseY + 1; y <= baseY + 4; y += 1) put(cx + dx, y, cz, BLOCK_IDS.AIR);
+    }
+    put(cx - 2, baseY + 1, cz + 1, BLOCK_IDS.GOLD);
+    put(cx + 2, baseY + 1, cz + 1, BLOCK_IDS.GOLD);
+    for (let dx = -3; dx <= 3; dx += 1) put(cx + dx, baseY + 1, cz - 2, BLOCK_IDS.COBBLESTONE);
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dz = -4; dz <= -3; dz += 1) put(cx + dx, baseY + 1, cz + dz, BLOCK_IDS.LAVA);
+    }
+    for (let dx = -3; dx <= -2; dx += 1) put(cx + dx, baseY + 1, cz + 2, BLOCK_IDS.STONE_BRICKS);
+    for (let dx = 3; dx <= 4; dx += 1) put(cx + dx, baseY + 1, cz - 1, BLOCK_IDS.GOLD);
+    this.exclusionZones.push({ x: cx + 0.5, z: cz + 0.5, radius: 9 });
+    return { x: cx + 0.5, z: cz + 0.5, baseY, portalZ: cz + 0.5 };
+  }
+
   _planVillage(spot) {
     const centerX = Math.floor(spot.x);
     const centerZ = Math.floor(spot.z);
     let groundY = Number.NEGATIVE_INFINITY;
-    for (let dx = -7; dx <= 7; dx += 1) {
-      for (let dz = -7; dz <= 7; dz += 1) {
+    for (let dx = -10; dx <= 10; dx += 1) {
+      for (let dz = -10; dz <= 10; dz += 1) {
         groundY = Math.max(groundY, this.heightAt(centerX + dx, centerZ + dz));
       }
     }
@@ -1072,8 +1142,8 @@ export class World {
     const wheat = BLOCK_IDS.WHEAT;
 
     // 平整村庄地面，并清掉会穿进房子的树和花。
-    for (let dx = -7; dx <= 7; dx += 1) {
-      for (let dz = -7; dz <= 7; dz += 1) {
+    for (let dx = -10; dx <= 10; dx += 1) {
+      for (let dz = -10; dz <= 10; dz += 1) {
         const x = centerX + dx;
         const z = centerZ + dz;
         const height = this.heightAt(x, z);
@@ -1084,11 +1154,17 @@ export class World {
     }
 
     // 十字小路。
-    for (let d = -7; d <= 7; d += 1) {
+    for (let d = -10; d <= 10; d += 1) {
       put(centerX + d, groundY, centerZ, path);
       put(centerX + d, groundY, centerZ + 1, path);
       put(centerX, groundY, centerZ + d, path);
       put(centerX + 1, groundY, centerZ + d, path);
+    }
+
+    // 村口暖光灯笼
+    for (const [ox, oz] of [[-6, -6], [6, -6], [-6, 6], [6, 6], [-4, 0], [4, 0], [0, -4], [0, 4]]) {
+      put(centerX + ox, groundY + 1, centerZ + oz, BLOCK_IDS.WOOD);
+      put(centerX + ox, groundY + 2, centerZ + oz, BLOCK_IDS.LANTERN);
     }
 
     // 村中心的小水井。
@@ -1155,6 +1231,43 @@ export class World {
     buildHouse(centerX - 6, centerZ - 6, 5, 4);
     buildHouse(centerX + 2, centerZ - 6, 5, 4);
     buildHouse(centerX - 6, centerZ + 3, 5, 4);
+    // 村庄扩大后新增的两栋房子。
+    buildHouse(centerX - 10, centerZ - 8, 5, 4);
+    buildHouse(centerX + 5, centerZ + 7, 5, 4);
+
+    // 集市摊位：木柱、红顶、宝箱和麦子。
+    for (const [sx, sz] of [[centerX + 7, centerZ + 2], [centerX - 9, centerZ + 2]]) {
+      for (let x = sx; x <= sx + 2; x += 1) {
+        for (let z = sz; z <= sz + 2; z += 1) {
+          put(x, groundY, z, dark);
+          put(x, groundY + 1, z, (x + z) % 2 === 0 ? planks : air);
+          if (x === sx || x === sx + 2 || z === sz || z === sz + 2) {
+            put(x, groundY + 2, z, BLOCK_IDS.WOOD);
+            if (x !== sx + 1 || z !== sz + 1) put(x, groundY + 3, z, roof);
+          }
+        }
+      }
+      put(sx, groundY + 1, sz + 1, BLOCK_IDS.CHEST);
+      put(sx + 2, groundY + 1, sz + 1, wheat);
+    }
+
+    // 小钟楼：金块当钟，红顶当亭子。
+    const bellX = centerX - 9;
+    const bellZ = centerZ + 8;
+    for (let x = bellX; x <= bellX + 2; x += 1) {
+      for (let z = bellZ; z <= bellZ + 2; z += 1) {
+        put(x, groundY, z, brick);
+      }
+    }
+    for (const x of [bellX, bellX + 2]) {
+      for (const z of [bellZ, bellZ + 2]) {
+        for (let y = groundY + 1; y <= groundY + 3; y += 1) put(x, y, z, planks);
+      }
+    }
+    put(bellX + 1, groundY + 3, bellZ + 1, BLOCK_IDS.GOLD);
+    for (let x = bellX - 1; x <= bellX + 3; x += 1) {
+      for (let z = bellZ - 1; z <= bellZ + 3; z += 1) put(x, groundY + 4, z, roof);
+    }
 
     // 小农田：三行泥土，中间一条水沟。
     for (let dx = 1; dx <= 5; dx += 1) {
@@ -1176,7 +1289,7 @@ export class World {
     // 宝箱放在水井旁边，里面装着村庄的小礼物（装饰）。
     put(centerX + 2, groundY, centerZ - 2, BLOCK_IDS.CHEST);
 
-    this.exclusionZones.push({ x: centerX + 0.5, z: centerZ + 0.5, radius: 9 });
+    this.exclusionZones.push({ x: centerX + 0.5, z: centerZ + 0.5, radius: 13 });
   }
 
   _generateChunk(cx, cz) {
@@ -1361,6 +1474,16 @@ export class World {
         localSet(lx + 3, roomY + 2, lz, BLOCK_IDS.TORCH);
         localSet(lx, roomY, lz + 3, BLOCK_IDS.CHEST);
 
+        // 矿洞里的蜘蛛网和陈旧灯笼。
+        for (const [wx, wz] of [[lx - 3, lz - 2], [lx + 3, lz - 2], [lx - 3, lz + 2], [lx + 3, lz + 2], [lx, lz + 3]]) {
+          for (let wy = roomY + 1; wy <= roomY + 3; wy += 1) {
+            if ((wx + wz + wy) % 3 === 0) localSet(wx, wy, wz, BLOCK_IDS.COBWEB);
+          }
+          localSet(wx, roomY + 1, wz, BLOCK_IDS.COBWEB);
+        }
+        localSet(lx, roomY + 3, lz, BLOCK_IDS.LANTERN);
+        localSet(lx - 3, roomY + 3, lz, BLOCK_IDS.LANTERN);
+
         // 从房间东侧挖一个可以游进游出的水面竖井，并在草地里留下明显的矿井入口。
         const shaftX = lx + 6;
         const shaftZ = lz;
@@ -1433,6 +1556,10 @@ export class World {
           cz,
           entrance,
         });
+        const mineLight = new THREE.PointLight('#ffb45e', 1.15, 13, 2);
+        mineLight.position.set(baseX + lx + 0.5, roomY + 2.5, baseZ + lz + 0.5);
+        this.scene.add(mineLight);
+        this.mineLights.push(mineLight);
         if (this.landmarks) {
           this._addWaypointMarker(
             this.landmarks,
@@ -1445,6 +1572,110 @@ export class World {
           );
         }
       }
+    }
+
+    this._tryPlaceAmethystGeode(data, cx, cz, localSet);
+  }
+
+  _tryPlaceAmethystGeode(data, cx, cz, localSet) {
+    const forced = cx === 0 && cz === 0;
+    if (!forced && hashInt(this.seed + 923, cx, cz) % 9 !== 0) return;
+    const lx = 8;
+    const lz = 8;
+    const centerY = 6;
+    const worldX = cx * CHUNK_SIZE + lx + 0.5;
+    const worldZ = cz * CHUNK_SIZE + lz + 0.5;
+    if (this._isExcluded(worldX, worldZ)) return;
+    const surface = this.heightAt(cx * CHUNK_SIZE + lx, cz * CHUNK_SIZE + lz);
+    if (surface < centerY + 7) return;
+    const B = BLOCK_IDS;
+    const radius = 5.8;
+    for (let x = lx - 7; x <= lx + 7; x += 1) {
+      for (let z = lz - 7; z <= lz + 7; z += 1) {
+        for (let y = 0; y <= 13; y += 1) {
+          const distance = Math.hypot(x - lx, y - centerY, z - lz);
+          if (distance > radius) continue;
+          if (distance <= 2.9) localSet(x, y, z, B.AIR);
+          else if (distance <= 3.8) localSet(x, y, z, B.AMETHYST);
+          else if (distance <= 4.8) localSet(x, y, z, B.CALCITE);
+          else localSet(x, y, z, B.BASALT);
+        }
+      }
+    }
+    // 在晶洞内壁插上发亮的紫水晶晶簇，中心再放一小簇大的。
+    const random = mulberry32(hashInt(this.seed + 929, cx, cz));
+    for (let i = 0; i < 58; i += 1) {
+      const angle = random() * Math.PI * 2;
+      const height = Math.floor(random() * 9) + 1;
+      const radiusAt = 2.7 + random() * 0.55;
+      const x = lx + Math.round(Math.cos(angle) * radiusAt);
+      const z = lz + Math.round(Math.sin(angle) * radiusAt);
+      if (Math.hypot(x - lx, height - centerY, z - lz) < 3.7) {
+        localSet(x, height, z, B.AMETHYST_CRYSTAL);
+      }
+    }
+    for (const [dx, dz, h] of [[0, 0, 1], [-1, 0, 2], [1, 0, 2], [0, -1, 2], [0, 1, 1]]) {
+      localSet(lx + dx, centerY + h, lz + dz, B.AMETHYST_CRYSTAL);
+    }
+    // 地表露出一小撮紫水晶，作为进入地下的线索。
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dz = -1; dz <= 1; dz += 1) {
+        if (Math.abs(dx) + Math.abs(dz) > 1) continue;
+        localSet(lx + dx, surface, lz + dz, (dx + dz) % 2 === 0 ? BLOCK_IDS.CALCITE : BLOCK_IDS.AMETHYST);
+      }
+    }
+    localSet(lx, surface + 1, lz, BLOCK_IDS.AMETHYST_CRYSTAL);
+    this.geodes.push({
+      x: cx * CHUNK_SIZE + lx + 0.5,
+      y: centerY,
+      z: cz * CHUNK_SIZE + lz + 0.5,
+      surface,
+    });
+    const glow = new THREE.PointLight('#d79bff', 1.35, 16, 2);
+    glow.position.set(cx * CHUNK_SIZE + lx + 0.5, centerY + 1.5, cz * CHUNK_SIZE + lz + 0.5);
+    this.scene.add(glow);
+    this.geodeLights.push(glow);
+
+    // 真实晶洞里的晶簇会从洞壁向中心生长，用几个多面体晶体补强方块晶簇。
+    const geodeGroup = new THREE.Group();
+    geodeGroup.position.set(cx * CHUNK_SIZE + lx + 0.5, centerY, cz * CHUNK_SIZE + lz + 0.5);
+    const crystalMaterials = [
+      new THREE.MeshLambertMaterial({ color: '#b35cff', emissive: '#3b0d62', emissiveIntensity: 0.7 }),
+      new THREE.MeshLambertMaterial({ color: '#d79bff', emissive: '#5b1988', emissiveIntensity: 0.8 }),
+      new THREE.MeshLambertMaterial({ color: '#8d42cf', emissive: '#26063f', emissiveIntensity: 0.6 }),
+    ];
+    const crystalRandom = mulberry32(hashInt(this.seed + 931, cx, cz));
+    for (let i = 0; i < 30; i += 1) {
+      const angle = crystalRandom() * Math.PI * 2;
+      const elevation = (crystalRandom() - 0.35) * 1.8;
+      const radiusAt = 2.35 + crystalRandom() * 0.45;
+      const pos = new THREE.Vector3(
+        Math.cos(angle) * Math.cos(elevation) * radiusAt,
+        Math.sin(elevation) * radiusAt,
+        Math.sin(angle) * Math.cos(elevation) * radiusAt,
+      );
+      const height = 0.5 + crystalRandom() * 1.35;
+      const geometry = new THREE.ConeGeometry(0.16 + crystalRandom() * 0.22, height, 5);
+      const crystal = new THREE.Mesh(geometry, crystalMaterials[i % crystalMaterials.length]);
+      crystal.position.copy(pos);
+      const inward = pos.clone().negate().normalize();
+      crystal.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), inward);
+      geodeGroup.add(crystal);
+    }
+    geodeGroup.userData.crystalMaterials = crystalMaterials;
+    this.scene.add(geodeGroup);
+    this.geodeVisuals.push(geodeGroup);
+    this.exclusionZones.push({ x: cx * CHUNK_SIZE + lx + 0.5, z: cz * CHUNK_SIZE + lz + 0.5, radius: 5 });
+    if (this.landmarks) {
+      this._addWaypointMarker(
+        this.landmarks,
+        cx * CHUNK_SIZE + lx + 0.5,
+        surface + 7,
+        cz * CHUNK_SIZE + lz + 0.5,
+        '💎 紫水晶洞',
+        '#d79bff',
+        2.4,
+      );
     }
   }
 
@@ -1861,6 +2092,10 @@ export class World {
     if (this.waterfallTexture) {
       this.waterfallTexture.offset.y -= delta * 0.8;
     }
+    if (this.portalTexture) {
+      this.portalTexture.offset.y -= delta * 0.45;
+      this.portalTexture.offset.x += delta * 0.12;
+    }
 
     this._checkTimer -= delta;
     if (this._checkTimer <= 0) {
@@ -2185,6 +2420,16 @@ export class World {
     windmill.rotation.y = Math.atan2(target.x, target.y);
     group.add(windmill);
 
+    // 村庄中心的暖色灯光，夜里更接近参考图里的营地氛围。
+    if (this.villageSpots?.[0]) {
+      const village = this.villageSpots[0];
+      const villageY = this.heightAt(village.x, village.z) + 3.2;
+      const warmLight = new THREE.PointLight('#ffb45e', 1.25, 20, 2);
+      warmLight.position.set(village.x, villageY, village.z);
+      group.add(warmLight);
+      this.villageLight = warmLight;
+    }
+
     // 几朵永远停在家门口的小白云，让远处也有层次。
     const cloudMaterial = new THREE.MeshBasicMaterial({
       color: '#ffffff',
@@ -2236,6 +2481,48 @@ export class World {
         '#7fe7ff',
         1.7,
       );
+    }
+
+    if (this.ruinedPortal) {
+      const portal = this.ruinedPortal;
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 96;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 0, 96);
+      grad.addColorStop(0, 'rgba(52, 8, 71, 0.92)');
+      grad.addColorStop(0.45, 'rgba(162, 63, 220, 0.9)');
+      grad.addColorStop(0.72, 'rgba(74, 18, 116, 0.92)');
+      grad.addColorStop(1, 'rgba(226, 116, 255, 0.88)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 64, 96);
+      for (let i = 0; i < 18; i += 1) {
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.18)' : 'rgba(236,190,255,0.2)';
+        ctx.fillRect((i * 17) % 64, (i * 29) % 96, 2, 14 + (i % 4) * 9);
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(1.2, 1.4);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.86,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        fog: false,
+      });
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2.35, 3.6), material);
+      plane.position.set(portal.x, portal.baseY + 2.7, portal.portalZ - 0.01);
+      plane.renderOrder = 4;
+      group.add(plane);
+      const light = new THREE.PointLight('#c36bff', 1.6, 15, 2);
+      light.position.set(portal.x, portal.baseY + 2.5, portal.portalZ + 0.8);
+      group.add(light);
+      this.portalTexture = texture;
+      this.portalMaterial = material;
+      this._addWaypointMarker(group, portal.x, portal.baseY + 9, portal.z, '🌀 神秘传送门', '#d38bff', 3.1);
     }
 
     return group;
@@ -2370,6 +2657,15 @@ export class World {
     this.scene.remove(this.chunkGroup);
     this.scene.remove(this.landmarks);
     if (this.waterfallVisual) this.scene.remove(this.waterfallVisual);
+    for (const light of this.geodeLights || []) this.scene.remove(light);
+    for (const light of this.mineLights || []) this.scene.remove(light);
+    for (const group of this.geodeVisuals || []) {
+      this.scene.remove(group);
+      group.traverse((object) => {
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) object.material.dispose();
+      });
+    }
 
     this.atlasTexture.dispose();
     this.solidMaterial.dispose();
