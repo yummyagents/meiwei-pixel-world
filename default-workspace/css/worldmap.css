@@ -1,0 +1,182 @@
+/* 全区域世界地图 */
+.worldmap-overlay {
+  padding: 18px;
+}
+
+.worldmap-card {
+  position: relative;
+  width: min(900px, 96vw);
+  max-height: 96vh;
+  overflow-y: auto;
+  padding: 18px 22px 16px;
+  border: 3px solid #3b3452;
+  border-radius: 24px;
+  background: #fffaf0;
+  box-shadow: 0 12px 0 rgba(61, 48, 51, 0.28), 0 24px 70px rgba(26, 27, 50, 0.24);
+}
+
+.worldmap-card h2 {
+  margin: 5px 0 3px;
+  color: #3b3452;
+  font-size: clamp(26px, 4vw, 38px);
+}
+
+.worldmap-card > p {
+  margin: 0 0 9px;
+  color: #6f657c;
+  font-size: 14px;
+}
+
+.worldmap-stage {
+  position: relative;
+  width: min(100%, 500px);
+  margin: 3px auto 9px;
+  overflow: hidden;
+  border: 3px solid rgba(59, 52, 82, 0.62);
+  border-radius: 16px;
+  background: #223d5a;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+#worldmap-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+}
+
+.worldmap-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff6d0;
+  background: rgba(28, 37, 56, 0.72);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.worldmap-compass {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(34, 38, 60, 0.5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 900;
+  transform: translateX(-50%);
+}
+
+.worldmap-legend {
+  display: grid;
+  gap: 7px;
+  margin: 0 auto 8px;
+  padding: 10px 12px;
+  border: 1px solid #dfd4c2;
+  border-radius: 12px;
+  background: #fffdf8;
+}
+
+.worldmap-legend-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 14px;
+  color: #61576d;
+  font-size: 12px;
+}
+
+.worldmap-legend-group strong {
+  min-width: 42px;
+  color: #4b425b;
+  font-size: 12px;
+}
+
+.worldmap-legend-group span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.map-swatch,
+.map-pin,
+.map-triangle {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+}
+
+.map-swatch {
+  border: 1px solid rgba(49, 42, 58, 0.35);
+  border-radius: 3px;
+  background: var(--swatch);
+}
+
+.map-pin {
+  border: 1px solid rgba(49, 42, 58, 0.7);
+  border-radius: 50%;
+  background: var(--pin);
+}
+
+.map-triangle {
+  width: 0;
+  height: 0;
+  border-right: 6px solid transparent;
+  border-bottom: 11px solid var(--pin);
+  border-left: 6px solid transparent;
+}
+
+.worldmap-marker-legend {
+  padding-top: 5px;
+  border-top: 1px dashed #e2d8c8;
+}
+
+@media (max-width: 640px) {
+  .worldmap-overlay {
+    padding: 8px;
+  }
+
+  .worldmap-card {
+    width: 98vw;
+    max-height: 98vh;
+    padding: 16px 14px 16px;
+    border-radius: 18px;
+  }
+
+  .worldmap-card h2 {
+    font-size: 26px;
+  }
+
+  .worldmap-card > p {
+    font-size: 12px;
+  }
+
+  .worldmap-stage {
+    width: 100%;
+  }
+
+  .worldmap-legend {
+    padding: 8px;
+  }
+
+  .worldmap-legend-group {
+    gap: 5px 9px;
+    font-size: 10px;
+  }
+
+  .worldmap-legend-group strong {
+    min-width: 34px;
+    font-size: 10px;
+  }
+}
