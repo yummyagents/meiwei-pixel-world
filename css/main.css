@@ -1,0 +1,8 @@
+/* 页面样式入口：按功能拆分，方便以后继续添加背包、作品集等界面。 */
+@import url('./base.css');
+@import url('./screens.css');
+@import url('./game.css');
+@import url('./inventory.css');
+@import url('./save-gallery.css');
+@import url('./worldmap.css');
+@import url('./responsive.css');
