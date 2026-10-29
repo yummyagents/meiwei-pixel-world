@@ -452,3 +452,14 @@ body[data-visual-theme='neon'] .game-color-wash {
     repeating-linear-gradient(0deg, rgba(0, 20, 28, 0.06) 0 1px, transparent 1px 3px),
     linear-gradient(180deg, rgba(25, 253, 228, 0.04), transparent 32%);
 }
+
+body[data-dimension='nether'] .game-color-wash {
+  background:
+    radial-gradient(ellipse at center, transparent 35%, rgba(28, 0, 0, 0.58) 100%),
+    repeating-linear-gradient(0deg, rgba(255, 70, 20, 0.035) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, rgba(95, 16, 8, 0.22), transparent 35%);
+}
+
+body[data-dimension='nether'] #hud .hud-card {
+  border-color: rgba(255, 112, 64, 0.4);
+}

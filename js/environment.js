@@ -114,6 +114,15 @@ export class Environment {
     return this.theme;
   }
 
+  setVisible(visible) {
+    this._visible = Boolean(visible);
+    const objects = [this._sky, this.stars, this.sunGroup, this.moonGroup, this.cloudGroup, this.weatherEffects?.group];
+    for (const object of objects) if (object) object.visible = this._visible;
+    for (const light of [this.hemiLight, this.ambientLight, this.sunLight]) {
+      if (light) light.visible = this._visible;
+    }
+  }
+
   _createSky() {
     const geometry = new THREE.SphereGeometry(280, 28, 18);
     const material = new THREE.ShaderMaterial({

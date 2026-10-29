@@ -13,6 +13,7 @@ import { Inventory, MAGNET_SLOT_INDEX } from './inventory.js';
 import { GameAudio } from './audio.js';
 import { SaveManager } from './save.js';
 import { GalleryManager } from './gallery.js';
+import { NetherRealm } from './nether.js';
 import {
   DEFAULT_VISUAL_THEME_ID,
   VISUAL_THEME_STORAGE_KEY,
@@ -30,6 +31,9 @@ const state = {
   saveErrorShown: false,
   techCitySeen: false,
   visualThemeId: readVisualThemeId(),
+  portalDwell: 0,
+  portalCooldown: 0,
+  portalHintShown: false,
   themeResumeOnClose: false,
 };
 
@@ -135,6 +139,7 @@ const isTouchDevice =
 if (isTouchDevice) document.body.classList.add('touch-mode');
 
 document.body.dataset.screen = 'home';
+document.body.dataset.dimension = 'overworld';
 window.__gameBooted = true;
 
 document.getElementById('btn-mobile-fly')?.addEventListener('click', () => toggleFlight());
@@ -202,8 +207,9 @@ window.__MEIWEI_DEBUG__ = {
       pausedReason: state.pausedReason,
       game: state.game
         ? {
-            seed: state.game.world.seed,
-            spawn: { ...state.game.world.spawn },
+            dimension: state.game.dimension,
+            seed: state.game.overworldWorld?.seed || state.game.world.seed,
+            spawn: state.game.world.spawn ? { ...state.game.world.spawn } : null,
             landmarkSpot: { ...state.game.world.landmarkSpot },
             player: (() => {
               const player = state.game.player;
@@ -225,7 +231,26 @@ window.__MEIWEI_DEBUG__ = {
             waterfalls: (state.game.world.waterfalls || []).slice(0, 8),
             techCity: state.game.world.techCity || null,
             geodes: (state.game.world.geodes || []).slice(0, 12),
-            ruinedPortal: state.game.world.ruinedPortal || null,
+            ruinedPortal: state.game.overworldWorld?.ruinedPortal || state.game.world.ruinedPortal || null,
+            nether: state.game.nether
+              ? {
+                  mobs: state.game.nether.mobs.length,
+                  mobTypes: state.game.nether.mobs.reduce((acc, mob) => {
+                    const type = mob.userData.type || 'unknown';
+                    acc[type] = (acc[type] || 0) + 1;
+                    return acc;
+                  }, {}),
+                  returnPortal: { ...state.game.nether.returnPortal },
+                  blocks: [9, 40, 50, 51, 52].reduce((acc, id) => {
+                    let count = 0;
+                    for (let i = 0; i < state.game.nether.data.length; i += 1) {
+                      if (state.game.nether.data[i] === id) count += 1;
+                    }
+                    acc[id] = count;
+                    return acc;
+                  }, {}),
+                }
+              : null,
             inTechCity: state.game.world.isInTechCity(
               state.game.player.position.x,
               state.game.player.position.z,
@@ -568,6 +593,12 @@ async function startAdventure(character, options = {}) {
       world,
       environment,
       visualTheme,
+      three: THREE,
+      dimension: 'overworld',
+      nether: null,
+      overworldWorld: null,
+      overworldReturn: null,
+      overworldScene: null,
       player,
       inventory,
       interaction,
@@ -708,14 +739,19 @@ function tick(now) {
 
   if (!state.paused) {
     game.player.update(delta);
-    game.environment.update(delta, game.camera);
     game.world.update(delta, game.player.position);
     game.interaction.update(delta);
-    const animalState = game.animals.update(delta, game.player.position);
-    game.quests.update(game.player.position, animalState.nearestDistance);
-    game.minimap.update(delta, game.animals.animals);
-    ui.setUnderwater(game.player.headInWater);
-    updateAdaptiveQuality(game, rawDelta);
+    if (game.dimension === 'nether') {
+      ui.setUnderwater(false);
+    } else {
+      game.environment.update(delta, game.camera);
+      const animalState = game.animals.update(delta, game.player.position);
+      game.quests.update(game.player.position, animalState.nearestDistance);
+      game.minimap.update(delta, game.animals.animals);
+      ui.setUnderwater(game.player.headInWater);
+      updateAdaptiveQuality(game, rawDelta);
+    }
+    updatePortalTransition(game, rawDelta);
   } else {
     game.interaction.hideTarget();
     ui.setUnderwater(false);
@@ -736,6 +772,134 @@ function tick(now) {
   }
 
   game.renderer.render(game.scene, game.camera);
+}
+
+
+function updatePortalTransition(game, delta) {
+  if (state.portalCooldown > 0) {
+    state.portalCooldown = Math.max(0, state.portalCooldown - delta);
+    state.portalDwell = 0;
+    return;
+  }
+  const player = game.player;
+  let portal = null;
+  let range = 1.5;
+  if (game.dimension === 'overworld') {
+    const ruined = game.world.ruinedPortal;
+    if (!ruined) return;
+    portal = {
+      x: ruined.x,
+      y: ruined.baseY,
+      z: ruined.z,
+      minY: ruined.baseY,
+      maxY: ruined.baseY + 5,
+    };
+  } else if (game.dimension === 'nether' && game.nether) {
+    portal = {
+      x: game.nether.returnPortal.x,
+      y: game.nether.returnPortal.y,
+      z: game.nether.returnPortal.z,
+      minY: game.nether.returnPortal.y,
+      maxY: game.nether.returnPortal.y + 5,
+    };
+  }
+  if (!portal) {
+    state.portalDwell = 0;
+    return;
+  }
+  const near =
+    Math.hypot(player.position.x - portal.x, player.position.z - portal.z) < range &&
+    player.position.y >= portal.minY - 0.2 &&
+    player.position.y <= portal.maxY;
+  if (!near) {
+    state.portalDwell = 0;
+    return;
+  }
+  if (!state.portalHintShown) {
+    state.portalHintShown = true;
+    ui.toastMessage('🌀 传送门在发光，走进紫光里就能穿过去。', 'info', 2600);
+  }
+  state.portalDwell += delta;
+  if (state.portalDwell >= 0.65) {
+    state.portalDwell = 0;
+    if (game.dimension === 'overworld') enterNether(game);
+    else exitNether(game);
+  }
+}
+
+function enterNether(game) {
+  if (!game || game.dimension === 'nether') return;
+  if (!game.nether) {
+    game.nether = new NetherRealm({ scene: game.scene, theme: game.visualTheme });
+  }
+  const portal = game.world.ruinedPortal;
+  game.overworldWorld = game.world;
+  game.overworldReturn = {
+    x: portal.x,
+    y: portal.baseY + 1.02,
+    z: portal.z + 4,
+    yaw: Math.PI,
+    pitch: -0.05,
+  };
+  game.overworldScene = {
+    background: game.scene.background,
+    fog: game.scene.fog,
+  };
+  game.world.chunkGroup.visible = false;
+  game.world.landmarks.visible = false;
+  if (game.world.waterfallVisual) game.world.waterfallVisual.visible = false;
+  game.animals.group.visible = false;
+  game.environment.setVisible(false);
+  game.nether.setVisible(true);
+  game.scene.background = new game.three.Color('#160407');
+  game.scene.fog = new game.three.Fog('#54120d', 10, 52);
+  game.world = game.nether;
+  game.dimension = 'nether';
+  game.player.world = game.nether;
+  game.interaction.world = game.nether;
+  game.player.setSpawn(game.nether.spawn);
+  game.player.setFlying(false);
+  game.player.setCameraMode('first');
+  game.player.teleport(game.nether.spawn.x, game.nether.spawn.y, game.nether.spawn.z);
+  game.player.yaw = 0;
+  game.interaction.hideTarget();
+  document.body.dataset.dimension = 'nether';
+  ui.setMinimapVisible(false);
+  ui.toastMessage('🔥 穿过传送门，来到了下界。走回紫色传送门可以回家。', 'good', 4800);
+  state.portalCooldown = 2.5;
+  state.portalHintShown = false;
+  updateHUD(game);
+}
+
+function exitNether(game) {
+  if (!game || game.dimension !== 'nether' || !game.overworldWorld) return;
+  game.nether.setVisible(false);
+  game.scene.background = game.overworldScene?.background || null;
+  game.scene.fog = game.overworldScene?.fog || null;
+  game.environment.setVisible(true);
+  game.environment.setTheme(game.visualTheme);
+  game.world = game.overworldWorld;
+  game.dimension = 'overworld';
+  game.player.world = game.world;
+  game.interaction.world = game.world;
+  game.player.setSpawn(game.world.spawn);
+  game.player.setFlying(false);
+  game.player.setCameraMode('first');
+  const back = game.overworldReturn;
+  game.player.teleport(back.x, back.y, back.z);
+  game.player.yaw = back.yaw;
+  game.world.chunkGroup.visible = true;
+  game.world.landmarks.visible = true;
+  if (game.world.waterfallVisual) game.world.waterfallVisual.visible = true;
+  game.animals.group.visible = true;
+  game.interaction.hideTarget();
+  document.body.dataset.dimension = 'overworld';
+  ui.setMinimapVisible(false);
+  ui.toastMessage('🌿 回到主世界啦！下界的冒险先记在这里。', 'good', 3800);
+  state.portalCooldown = 2.5;
+  state.portalHintShown = false;
+  updateHUD(game);
+  persistGame('nether-return', { silent: true });
 }
 
 function updateModeIndicator() {
@@ -776,7 +940,7 @@ function setVisualTheme(themeId, { announce = true } = {}) {
   if (state.game) {
     state.game.visualTheme = theme;
     state.game.environment.setTheme(theme);
-    state.game.world.applyVisualTheme(theme);
+    (state.game.overworldWorld || state.game.world).applyVisualTheme(theme);
   }
   ui.setThemeActive(theme.id);
   if (announce) ui.toastMessage(`🎨 已切换：${theme.name}`, 'good', 2400);
@@ -803,14 +967,17 @@ function toggleCameraView() {
 
 function updateHUD(game) {
   const position = game.player.position;
+  const inNether = game.dimension === 'nether';
   const surfaceY = game.world.heightAt(position.x, position.z);
-  const underground = position.y < surfaceY - 3;
-  const inTechCity = !underground && game.world.isInTechCity(position.x, position.z);
-  const biome = underground
-    ? { emoji: '🪨', name: '地下洞穴' }
-    : inTechCity
-      ? { emoji: '🍔', name: '美味科技城' }
-      : game.world.getBiomeAt(position.x, position.z);
+  const underground = !inNether && position.y < surfaceY - 3;
+  const inTechCity = !inNether && !underground && game.world.isInTechCity(position.x, position.z);
+  const biome = inNether
+    ? { emoji: '🔥', name: '下界' }
+    : underground
+      ? { emoji: '🪨', name: '地下洞穴' }
+      : inTechCity
+        ? { emoji: '🍔', name: '美味科技城' }
+        : game.world.getBiomeAt(position.x, position.z);
   if (inTechCity && !state.techCitySeen) {
     state.techCitySeen = true;
     ui.toastMessage('欢迎来到美味科技城！这里有梯田花园、铜色高塔和四道瀑布。', 'good', 4600);
@@ -820,9 +987,9 @@ function updateHUD(game) {
     fps: game.fps,
     position,
     biome: `${biome.emoji} ${biome.name}`,
-    time: timeState.time,
-    weather: timeState.weather,
-    weatherEmoji: timeState.weatherEmoji,
+    time: inNether ? '—' : timeState.time,
+    weather: inNether ? '下界' : timeState.weather,
+    weatherEmoji: inNether ? '🔥' : timeState.weatherEmoji,
     chunks: game.world.getLoadedChunkCount(),
     character: game.character,
   });
@@ -831,7 +998,7 @@ function updateHUD(game) {
 }
 
 function updateWaypoint(game) {
-  if (!game?.world || !game.player) {
+  if (!game?.world || !game.player || game.dimension === 'nether') {
     ui.setWaypoint(null);
     return;
   }
@@ -1103,6 +1270,11 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyT') {
     if (event.repeat) return;
     if (state.paused) return;
+    if (state.game?.dimension === 'nether') {
+      ui.toastMessage('下界没有天气变化，只有岩浆和红雾。', 'info', 2200);
+      event.preventDefault();
+      return;
+    }
     const weather = state.game.environment.cycleWeather();
     ui.toastMessage(`${weather.emoji} 天气变成${weather.label}啦！`, 'info', 2200);
     updateHUD(state.game);
@@ -1112,6 +1284,11 @@ function handleGlobalKeyDown(event) {
 
   if (event.code === 'KeyM') {
     if (event.repeat) return;
+    if (state.game?.dimension === 'nether') {
+      ui.toastMessage('下界看不到主世界地图，先走回传送门吧。', 'info', 2600);
+      event.preventDefault();
+      return;
+    }
     if (ui.isWorldMapOpen()) {
       closeWorldMap();
       event.preventDefault();
@@ -1126,6 +1303,11 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyN') {
     if (event.repeat) return;
     if (state.paused) return;
+    if (state.game?.dimension === 'nether') {
+      ui.toastMessage('下界里小地图会迷失方向。', 'info', 2200);
+      event.preventDefault();
+      return;
+    }
     const visible = state.game.minimap.toggle(state.game.animals.animals);
     ui.setMinimapVisible(visible);
     event.preventDefault();
@@ -1273,7 +1455,7 @@ function showMagnetHintIfNeeded() {
 
 function createSaveData() {
   const game = state.game;
-  if (!game) return null;
+  if (!game || game.dimension === 'nether') return null;
   return {
     version: 1,
     savedAt: new Date().toISOString(),
@@ -1327,6 +1509,7 @@ function refreshHomeSaveUI() {
 
 function persistGame(reason = 'auto', { silent = false } = {}) {
   if (!state.game) return false;
+  if (state.game.dimension === 'nether') return false;
   const data = createSaveData();
   const result = saveManager.writeSave(data);
   if (!result.ok) {
@@ -1368,6 +1551,10 @@ function continueSavedGame() {
 }
 
 function exportSavedGame() {
+  if (state.game?.dimension === 'nether') {
+    ui.toastMessage('先回到主世界再导出存档吧。', 'info', 2600);
+    return;
+  }
   const data = state.game ? createSaveData() : saveManager.readSave();
   if (!data) {
     ui.toastMessage('还没有可以导出的存档，先玩一会儿吧。', 'info', 2600);
@@ -1504,6 +1691,10 @@ function capturePhoto() {
 
 function openWorldMap() {
   if (!state.game || state.paused) return;
+  if (state.game.dimension === 'nether') {
+    ui.toastMessage('下界看不到主世界地图，先走回传送门吧。', 'info', 2600);
+    return;
+  }
   state.paused = true;
   state.pausedReason = 'worldmap';
   setPlayerInputEnabled(false);
@@ -1638,7 +1829,7 @@ function cleanupGame() {
   const game = state.game;
   if (!game) return;
   stopGameLoop();
-  cleanupPartial(game);
+  cleanupPartial({ ...game, world: game.overworldWorld || game.world, nether: game.nether });
   state.game = null;
 }
 
@@ -1646,6 +1837,7 @@ function cleanupPartial({
   renderer,
   scene,
   world,
+  nether,
   environment,
   player,
   interaction,
@@ -1684,6 +1876,11 @@ function cleanupPartial({
     player?.dispose();
   } catch (error) {
     console.warn('[美味特工队] 清理玩家时出错：', error);
+  }
+  try {
+    nether?.dispose();
+  } catch (error) {
+    console.warn('[美味特工队] 清理下界时出错：', error);
   }
   try {
     world?.dispose();

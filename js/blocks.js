@@ -64,6 +64,9 @@ export const TILES = Object.freeze({
   COBWEB: 50,
   OBSIDIAN: 51,
   GOLD: 52,
+  NETHERRACK: 53,
+  SOUL_SAND: 54,
+  NETHER_BRICK: 55,
 });
 
 export const BLOCK_IDS = Object.freeze({
@@ -117,6 +120,9 @@ export const BLOCK_IDS = Object.freeze({
   COBWEB: 47,
   OBSIDIAN: 48,
   GOLD: 49,
+  NETHERRACK: 50,
+  SOUL_SAND: 51,
+  NETHER_BRICK: 52,
 });
 
 /**
@@ -585,6 +591,33 @@ export const BLOCKS = Object.freeze({
     transparent: false,
     tiles: { top: TILES.GOLD, bottom: TILES.GOLD, side: TILES.GOLD },
   },
+  [BLOCK_IDS.NETHERRACK]: {
+    id: BLOCK_IDS.NETHERRACK,
+    key: 'netherrack',
+    name: '下界岩',
+    icon: '🟥',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.NETHERRACK, bottom: TILES.NETHERRACK, side: TILES.NETHERRACK },
+  },
+  [BLOCK_IDS.SOUL_SAND]: {
+    id: BLOCK_IDS.SOUL_SAND,
+    key: 'soul_sand',
+    name: '灵魂沙',
+    icon: '🟫',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.SOUL_SAND, bottom: TILES.SOUL_SAND, side: TILES.SOUL_SAND },
+  },
+  [BLOCK_IDS.NETHER_BRICK]: {
+    id: BLOCK_IDS.NETHER_BRICK,
+    key: 'nether_brick',
+    name: '下界砖',
+    icon: '🧱',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.NETHER_BRICK, bottom: TILES.NETHER_BRICK, side: TILES.NETHER_BRICK },
+  },
 });
 
 /** 给背包按固定顺序展示的基础方块。 */
@@ -604,6 +637,9 @@ export const CREATIVE_BLOCKS = Object.freeze([
   BLOCK_IDS.COBWEB,
   BLOCK_IDS.OBSIDIAN,
   BLOCK_IDS.GOLD,
+  BLOCK_IDS.NETHERRACK,
+  BLOCK_IDS.SOUL_SAND,
+  BLOCK_IDS.NETHER_BRICK,
   BLOCK_IDS.WOOD,
   BLOCK_IDS.CHERRY_WOOD,
   BLOCK_IDS.LEAVES,
@@ -690,6 +726,9 @@ export const BLOCK_COLORS = Object.freeze({
   [BLOCK_IDS.COBWEB]: '#e9e9e9',
   [BLOCK_IDS.OBSIDIAN]: '#17101f',
   [BLOCK_IDS.GOLD]: '#f4c542',
+  [BLOCK_IDS.NETHERRACK]: '#9e3030',
+  [BLOCK_IDS.SOUL_SAND]: '#5b4035',
+  [BLOCK_IDS.NETHER_BRICK]: '#5a3038',
 });
 
 export function getBlockColor(id) {
@@ -1428,6 +1467,33 @@ function drawTile(ctx, tile) {
       ctx.fillStyle = '#fff1a0';
       ctx.fillRect(2, 2, 5, 2);
       ctx.fillRect(9, 11, 4, 2);
+      break;
+
+    case TILES.NETHERRACK:
+      fill(ctx, '#9e3030');
+      speckle(ctx, ['#bd4a3a', '#742322', '#c85c46', '#5c1b1d'], 2001, 52);
+      ctx.fillStyle = '#e07455';
+      ctx.fillRect(2, 3, 3, 1);
+      ctx.fillRect(10, 11, 3, 1);
+      break;
+
+    case TILES.SOUL_SAND:
+      fill(ctx, '#5b4035');
+      speckle(ctx, ['#7a5847', '#42302a', '#8d6952', '#33241f'], 2101, 45);
+      ctx.fillStyle = '#a17a60';
+      ctx.fillRect(4, 4, 2, 2);
+      ctx.fillRect(11, 9, 2, 2);
+      break;
+
+    case TILES.NETHER_BRICK:
+      fill(ctx, '#3b2028');
+      speckle(ctx, ['#5a3038', '#26151a', '#6c3b42', '#1c0e12'], 2201, 35);
+      ctx.fillStyle = '#7a4a47';
+      for (let y = 2; y < 16; y += 5) {
+        ctx.fillRect(1, y, 14, 1);
+        const offset = y % 2 === 0 ? 4 : 9;
+        ctx.fillRect(offset, y, 1, 4);
+      }
       break;
 
     case TILES.LAVA:
