@@ -996,6 +996,16 @@ export class World {
     addFall(centerX + 9, baseY + 3, 1);
     addFall(centerX - 9, baseY + 4, 1);
 
+    // 云上科技城的登云门：铜色基座 + 霓虹环。
+    const gateX = centerX + 9;
+    const gateZ = centerZ + 5;
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dz = -1; dz <= 1; dz += 1) {
+        put(gateX + dx, baseY + 1, gateZ + dz, (dx === 0 && dz === 0) ? B.NEON : B.COPPER);
+      }
+    }
+    this.skyPortal = { x: gateX + 0.5, z: gateZ + 0.5, y: baseY + 2 };
+
     this.exclusionZones.push({ x: centerX, z: centerZ, radius: 18 });
     this.techCity = {
       x: centerX,
@@ -2096,6 +2106,18 @@ export class World {
       this.portalTexture.offset.y -= delta * 0.45;
       this.portalTexture.offset.x += delta * 0.12;
     }
+    if (this.portalRings) {
+      this.portalRings[0].rotation.z += delta * 0.55;
+      this.portalRings[1].rotation.z -= delta * 0.4;
+    }
+    if (this.portalParticles) {
+      this.portalParticles.rotation.y += delta * 0.18;
+      this.portalParticles.position.y = Math.sin(performance.now() * 0.0012) * 0.08;
+    }
+    if (this.skyPortalRings) {
+      this.skyPortalRings[0].rotation.z += delta * 0.45;
+      this.skyPortalRings[1].rotation.z -= delta * 0.3;
+    }
 
     this._checkTimer -= delta;
     if (this._checkTimer <= 0) {
@@ -2513,16 +2535,74 @@ export class World {
         depthWrite: false,
         fog: false,
       });
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2.35, 3.6), material);
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2.75, 4.15), material);
       plane.position.set(portal.x, portal.baseY + 2.7, portal.portalZ - 0.01);
       plane.renderOrder = 4;
       group.add(plane);
-      const light = new THREE.PointLight('#c36bff', 1.6, 15, 2);
+      const light = new THREE.PointLight('#d36bff', 2.2, 18, 2);
       light.position.set(portal.x, portal.baseY + 2.5, portal.portalZ + 0.8);
       group.add(light);
+      const ringA = new THREE.Mesh(
+        new THREE.TorusGeometry(2.15, 0.1, 10, 48),
+        new THREE.MeshBasicMaterial({ color: '#e56dff', transparent: true, opacity: 0.8 }),
+      );
+      ringA.position.set(portal.x, portal.baseY + 2.7, portal.portalZ + 0.12);
+      group.add(ringA);
+      const ringB = new THREE.Mesh(
+        new THREE.TorusGeometry(2.45, 0.06, 8, 48),
+        new THREE.MeshBasicMaterial({ color: '#8af5ff', transparent: true, opacity: 0.65 }),
+      );
+      ringB.position.set(portal.x, portal.baseY + 2.7, portal.portalZ + 0.1);
+      group.add(ringB);
+      const particleGeometry = new THREE.BufferGeometry();
+      const particlePositions = [];
+      for (let i = 0; i < 70; i += 1) {
+        particlePositions.push(
+          portal.x + (Math.random() - 0.5) * 3.4,
+          portal.baseY + 0.8 + Math.random() * 4.4,
+          portal.portalZ + (Math.random() - 0.5) * 1.2,
+        );
+      }
+      particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+      const particles = new THREE.Points(
+        particleGeometry,
+        new THREE.PointsMaterial({ color: '#efb0ff', size: 0.12, transparent: true, opacity: 0.8, depthWrite: false }),
+      );
+      group.add(particles);
       this.portalTexture = texture;
       this.portalMaterial = material;
+      this.portalRings = [ringA, ringB];
+      this.portalParticles = particles;
       this._addWaypointMarker(group, portal.x, portal.baseY + 9, portal.z, '🌀 神秘传送门', '#d38bff', 3.1);
+    }
+
+    if (this.skyPortal) {
+      const gate = this.skyPortal;
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(2.2, 0.16, 12, 48),
+        new THREE.MeshBasicMaterial({ color: '#62f7ff', transparent: true, opacity: 0.9 }),
+      );
+      ring.position.set(gate.x, gate.y + 2.8, gate.z);
+      group.add(ring);
+      const ring2 = new THREE.Mesh(
+        new THREE.TorusGeometry(2.4, 0.08, 10, 48),
+        new THREE.MeshBasicMaterial({ color: '#ff79e8', transparent: true, opacity: 0.85 }),
+      );
+      ring2.position.set(gate.x, gate.y + 2.8, gate.z);
+      group.add(ring2);
+      const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.8, 4.2),
+        new THREE.MeshBasicMaterial({
+          color: '#71f5ff', transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false, fog: false,
+        }),
+      );
+      plane.position.set(gate.x, gate.y + 2.8, gate.z - 0.01);
+      group.add(plane);
+      const light = new THREE.PointLight('#6df5ff', 2, 18, 2);
+      light.position.set(gate.x, gate.y + 3, gate.z + 0.5);
+      group.add(light);
+      this.skyPortalRings = [ring, ring2];
+      this._addWaypointMarker(group, gate.x, gate.y + 9, gate.z, '☁️ 云上科技城', '#62f7ff', 2.7);
     }
 
     return group;

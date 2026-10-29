@@ -14,9 +14,9 @@ import {
   isSolidBlock,
 } from './blocks.js';
 
-const W = 48;
-const H = 24;
-const D = 48;
+const W = 72;
+const H = 28;
+const D = 72;
 const FACE_DEFS = [
   { n: [1, 0, 0], v: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], shade: 0.78 },
   { n: [-1, 0, 0], v: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], shade: 0.78 },
@@ -59,8 +59,8 @@ export class NetherRealm {
     this._buildReturnPortal();
     this._buildLights();
     this._buildMobs();
-    this.spawn = { x: 24.5, y: 8.02, z: 34.5 };
-    this.returnPortal = { x: 24.5, y: 8, z: 40.5 };
+    this.spawn = { x: 36.5, y: 8.02, z: 55.5 };
+    this.returnPortal = { x: 36.5, y: 8, z: 64.5 };
     this.biome = { emoji: '🔥', name: '下界' };
   }
 
@@ -95,17 +95,15 @@ export class NetherRealm {
 
   _generate() {
     const B = BLOCK_IDS;
-    // 下界岩地面和天花板，中间掏出一个巨大的洞穴。
+    // 更大的下界洞穴：地面、天花板、四周岩壁。
     for (let x = 0; x < W; x += 1) {
       for (let z = 0; z < D; z += 1) {
         for (let y = 0; y <= 7; y += 1) this._set(x, y, z, B.NETHERRACK);
-        for (let y = 8; y <= 16; y += 1) this._set(x, y, z, B.AIR);
-        for (let y = 17; y < H; y += 1) this._set(x, y, z, B.NETHERRACK);
+        for (let y = 8; y <= 19; y += 1) this._set(x, y, z, B.AIR);
+        for (let y = 20; y < H; y += 1) this._set(x, y, z, B.NETHERRACK);
       }
     }
-
-    // 四周岩壁，防止走出这座下界洞穴。
-    for (let y = 8; y <= 17; y += 1) {
+    for (let y = 8; y <= 19; y += 1) {
       for (let x = 0; x < W; x += 1) {
         this._set(x, y, 0, B.NETHERRACK);
         this._set(x, y, D - 1, B.NETHERRACK);
@@ -116,25 +114,31 @@ export class NetherRealm {
       }
     }
 
-    // 柱子和悬挂岩块，让洞穴不是一个大盒子。
-    for (let i = 0; i < 34; i += 1) {
-      const x = 3 + Math.floor(this.random() * (W - 6));
-      const z = 3 + Math.floor(this.random() * (D - 6));
-      const top = 16 - Math.floor(this.random() * 5);
-      const bottom = 9 + Math.floor(this.random() * 3);
+    // 大型岩柱和悬挂岩块。
+    for (let i = 0; i < 64; i += 1) {
+      const x = 4 + Math.floor(this.random() * (W - 8));
+      const z = 4 + Math.floor(this.random() * (D - 8));
+      const top = 19 - Math.floor(this.random() * 6);
+      const bottom = 9 + Math.floor(this.random() * 4);
       for (let y = bottom; y <= top; y += 1) this._set(x, y, z, B.NETHERRACK);
-    }
-
-    // 灵魂沙谷。
-    for (let x = 28; x <= 43; x += 1) {
-      for (let z = 22; z <= 37; z += 1) {
-        if (this.random() < 0.72) this._set(x, 7, z, B.SOUL_SAND);
+      if (i % 4 === 0) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          for (let dz = -1; dz <= 1; dz += 1) this._set(x + dx, top, z + dz, B.NETHERRACK);
+        }
       }
     }
 
-    // 岩浆池。
+    // 灵魂沙谷：下界里最安静的一片区域。
+    for (let x = 43; x <= 64; x += 1) {
+      for (let z = 40; z <= 62; z += 1) {
+        if (this.random() < 0.78) this._set(x, 7, z, B.SOUL_SAND);
+      }
+    }
+
+    // 分布在洞穴里的岩浆湖。
     const pools = [
-      [4, 6, 10, 16], [30, 34, 4, 10], [6, 35, 30, 43], [18, 24, 8, 13], [28, 36, 29, 35],
+      [4, 10, 10, 22], [44, 52, 6, 14], [8, 22, 48, 62],
+      [30, 40, 26, 34], [50, 64, 28, 38], [18, 28, 36, 44],
     ];
     for (const [x0, x1, z0, z1] of pools) {
       for (let x = x0; x <= x1; x += 1) {
@@ -145,57 +149,53 @@ export class NetherRealm {
       }
     }
 
-    // 小型下界堡垒：下界砖平台、塔楼、桥和黄金装饰。
-    for (let x = 8; x <= 18; x += 1) {
-      for (let z = 8; z <= 18; z += 1) {
+    // 下界堡垒：更大的三层平台、塔楼和桥。
+    for (let x = 12; x <= 30; x += 1) {
+      for (let z = 12; z <= 30; z += 1) {
         this._set(x, 8, z, B.NETHER_BRICK);
-        for (let y = 9; y <= 15; y += 1) this._set(x, y, z, B.AIR);
+        for (let y = 9; y <= 17; y += 1) this._set(x, y, z, B.AIR);
       }
     }
-    for (const [tx, tz] of [[10, 10], [16, 10], [13, 16]]) {
-      for (let x = tx - 1; x <= tx + 1; x += 1) {
-        for (let z = tz - 1; z <= tz + 1; z += 1) {
-          for (let y = 9; y <= 13; y += 1) {
-            const edge = x === tx - 1 || x === tx + 1 || z === tz - 1 || z === tz + 1;
+    for (const [tx, tz] of [[15, 15], [27, 15], [21, 27], [21, 15]]) {
+      for (let x = tx - 2; x <= tx + 2; x += 1) {
+        for (let z = tz - 2; z <= tz + 2; z += 1) {
+          for (let y = 9; y <= 14; y += 1) {
+            const edge = x === tx - 2 || x === tx + 2 || z === tz - 2 || z === tz + 2;
             this._set(x, y, z, edge ? B.NETHER_BRICK : B.AIR);
           }
-          this._set(x, 14, z, B.NETHER_BRICK);
-          this._set(x, 15, z, B.GOLD);
+          this._set(x, 15, z, B.NETHER_BRICK);
         }
       }
+      this._set(tx, 16, tz, B.GOLD);
+      this._set(tx, 9, tz, B.LANTERN);
     }
-    for (let x = 10; x <= 16; x += 1) {
-      this._set(x, 11, 10, B.NETHER_BRICK);
-      this._set(x, 12, 10, B.NETHER_BRICK);
-    }
-    for (const x of [9, 17]) {
-      for (const z of [9, 17]) {
-        this._set(x, 9, z, B.GOLD);
-      }
+    for (let x = 15; x <= 27; x += 1) {
+      this._set(x, 12, 15, B.NETHER_BRICK);
+      this._set(x, 13, 15, B.NETHER_BRICK);
+      this._set(x, 10, 27, B.NETHER_BRICK);
+      this._set(x, 11, 27, B.GOLD);
     }
 
-    // 传送门前方的小型下界砖哨塔，出生时就能看到。
-    for (let x = 29; x <= 33; x += 1) {
-      for (let z = 19; z <= 23; z += 1) {
-        const edge = x === 29 || x === 33 || z === 19 || z === 23;
-        for (let y = 8; y <= 12; y += 1) this._set(x, y, z, edge ? B.NETHER_BRICK : B.AIR);
-        this._set(x, 13, z, B.NETHER_BRICK);
+    // 出生点附近的下界砖哨塔。
+    for (let x = 47; x <= 51; x += 1) {
+      for (let z = 38; z <= 42; z += 1) {
+        const edge = x === 47 || x === 51 || z === 38 || z === 42;
+        for (let y = 8; y <= 13; y += 1) this._set(x, y, z, edge ? B.NETHER_BRICK : B.AIR);
+        this._set(x, 14, z, B.NETHER_BRICK);
       }
     }
-    this._set(31, 14, 21, B.GOLD);
-    this._set(31, 8, 21, B.GOLD);
-    this._set(31, 9, 20, B.LANTERN);
-    this._set(30, 12, 22, B.LANTERN);
+    this._set(49, 15, 40, B.GOLD);
+    this._set(49, 9, 39, B.LANTERN);
 
     // 传送门附近留空。
-    for (let x = 21; x <= 27; x += 1) {
-      for (let z = 38; z <= 44; z += 1) {
-        for (let y = 8; y <= 12; y += 1) this._set(x, y, z, B.AIR);
+    for (let x = 32; x <= 40; x += 1) {
+      for (let z = 61; z <= 68; z += 1) {
+        for (let y = 8; y <= 15; y += 1) this._set(x, y, z, B.AIR);
       }
     }
 
-    // 放置一些暖光灯笼，夜里的下界不会完全看不见。
-    for (const [x, y, z] of [[12, 15, 9], [30, 14, 15], [38, 13, 34], [19, 12, 31]]) {
+    // 洞顶和地面的灯笼。
+    for (const [x, y, z] of [[21, 18, 15], [52, 18, 34], [60, 17, 50], [30, 16, 54], [37, 15, 28]]) {
       this._set(x, y, z, B.LANTERN);
     }
   }
@@ -283,13 +283,18 @@ export class NetherRealm {
 
   _buildReturnPortal() {
     const B = BLOCK_IDS;
-    for (const x of [22, 26]) {
-      for (let y = 8; y <= 12; y += 1) this._set(x, y, 40, B.OBSIDIAN);
+    for (const x of [33, 39]) {
+      for (let y = 8; y <= 14; y += 1) this._set(x, y, 64, B.OBSIDIAN);
     }
-    for (let x = 22; x <= 26; x += 1) this._set(x, 12, 40, B.OBSIDIAN);
-    for (let x = 23; x <= 25; x += 1) {
-      for (let y = 8; y <= 11; y += 1) this._set(x, y, 40, B.AIR);
+    for (let x = 33; x <= 39; x += 1) {
+      this._set(x, 14, 64, B.OBSIDIAN);
+      this._set(x, 15, 64, B.NETHER_BRICK);
     }
+    for (let x = 34; x <= 38; x += 1) {
+      for (let y = 8; y <= 13; y += 1) this._set(x, y, 64, B.AIR);
+    }
+    this._set(32, 8, 65, B.GOLD);
+    this._set(40, 8, 65, B.GOLD);
     this._buildMesh();
     const canvas = document.createElement('canvas');
     canvas.width = 64;
@@ -317,10 +322,26 @@ export class NetherRealm {
       depthWrite: false,
       fog: false,
     });
-    this.portalMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 4.6), this.portalMaterial);
-    this.portalMesh.position.set(24.5, 10.3, 39.96);
+    this.portalMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.7, 5.7), this.portalMaterial);
+    this.portalMesh.position.set(36.5, 11.2, 63.96);
     this.portalMesh.renderOrder = 4;
     this.group.add(this.portalMesh);
+    const ringA = new THREE.Mesh(
+      new THREE.TorusGeometry(3.2, 0.12, 10, 56),
+      new THREE.MeshBasicMaterial({ color: '#d36bff', transparent: true, opacity: 0.85 }),
+    );
+    ringA.position.set(36.5, 11.2, 64.0);
+    this.group.add(ringA);
+    const ringB = new THREE.Mesh(
+      new THREE.TorusGeometry(3.5, 0.06, 8, 56),
+      new THREE.MeshBasicMaterial({ color: '#78f5ff', transparent: true, opacity: 0.65 }),
+    );
+    ringB.position.set(36.5, 11.2, 64.0);
+    this.group.add(ringB);
+    this.portalRings = [ringA, ringB];
+    const light = new THREE.PointLight('#d36bff', 2.4, 22, 2);
+    light.position.set(36.5, 11.2, 62.5);
+    this.group.add(light);
   }
 
   _buildLights() {
@@ -328,7 +349,7 @@ export class NetherRealm {
     const hemi = new THREE.HemisphereLight('#ff6844', '#2a0707', 1.25);
     this.group.add(ambient, hemi);
     this.lights.push(ambient, hemi);
-    for (const [x, y, z] of [[24, 11, 40], [14, 12, 12], [36, 12, 30], [12, 10, 34], [30, 11, 32], [22, 10, 12], [31, 12, 21], [26, 10, 26]]) {
+    for (const [x, y, z] of [[36, 12, 64], [20, 15, 20], [55, 14, 45], [16, 12, 52], [50, 13, 52], [35, 11, 32], [21, 15, 28]]) {
       const light = new THREE.PointLight('#ff7a32', 1.25, 18, 2);
       light.position.set(x, y, z);
       this.group.add(light);
@@ -344,7 +365,7 @@ export class NetherRealm {
       return mesh;
     };
     // 恶魂：白灰色身体、红色眼睛、垂下的触手。
-    for (const [x, y, z] of [[12, 14, 24], [33, 15, 14], [36, 14, 31], [20, 13, 28], [24, 12, 20]]) {
+    for (const [x, y, z] of [[21, 16, 36], [54, 17, 22], [58, 15, 50], [32, 16, 44], [36, 13, 48], [48, 15, 30]]) {
       const g = new THREE.Group();
       addBox(g, 1.3, 1.1, 1.2, '#e1ded2', 0, 0, 0);
       addBox(g, 0.22, 0.18, 0.12, '#ff3020', -0.28, 0.15, 0.62);
@@ -358,7 +379,7 @@ export class NetherRealm {
       this.mobs.push(g);
     }
     // 猪灵：粉色身体、金色护甲、在金块堡垒附近巡逻。
-    for (const [x, z] of [[11, 12], [16, 12], [13, 15], [30, 22], [8, 31], [28, 28]]) {
+    for (const [x, z] of [[15, 15], [27, 15], [21, 27], [21, 15], [50, 41], [56, 46], [14, 52], [48, 58]]) {
       const g = new THREE.Group();
       addBox(g, 0.56, 0.78, 0.38, '#b9795e', 0, 0.92, 0);
       addBox(g, 0.48, 0.46, 0.44, '#c88d6c', 0, 1.52, 0);
@@ -393,6 +414,10 @@ export class NetherRealm {
   update(delta, playerPosition) {
     this._portalTime += delta;
     if (this.portalTexture) this.portalTexture.offset.y -= delta * 0.45;
+    if (this.portalRings) {
+      this.portalRings[0].rotation.z += delta * 0.55;
+      this.portalRings[1].rotation.z -= delta * 0.4;
+    }
     for (const mob of this.mobs) {
       const phase = mob.userData.phase || 0;
       if (mob.userData.type === 'ghast') {

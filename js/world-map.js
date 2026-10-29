@@ -143,6 +143,14 @@ export class WorldMap {
         z: this.world.ruinedPortal.z,
       });
     }
+    if (this.world.skyPortal) {
+      points.push({
+        icon: '☁️',
+        label: '云上科技城入口',
+        x: this.world.skyPortal.x,
+        z: this.world.skyPortal.z,
+      });
+    }
     if (this.world.techCity) {
       points.push({
         icon: '⚙',
@@ -233,6 +241,9 @@ export class WorldMap {
     if (this.world.ruinedPortal) {
       addMarker(this.world.ruinedPortal.x, this.world.ruinedPortal.z, '#d38bff', 7);
     }
+    if (this.world.skyPortal) {
+      addMarker(this.world.skyPortal.x, this.world.skyPortal.z, '#62f7ff', 7);
+    }
     for (const mine of this.world.mineshafts || []) {
       const point = mine.entrance || mine;
       addMarker(point.x, point.z, '#c79a66', 5);
@@ -276,6 +287,9 @@ export class WorldMap {
     }
     if (this.world.ruinedPortal) {
       labelMarker(this.world.ruinedPortal.x, this.world.ruinedPortal.z, '神秘传送门', '#d38bff', -10, 18);
+    }
+    if (this.world.skyPortal) {
+      labelMarker(this.world.skyPortal.x, this.world.skyPortal.z, '云上科技城', '#62f7ff', 12, 18);
     }
     for (const mine of this.world.mineshafts || []) {
       const point = mine.entrance || mine;

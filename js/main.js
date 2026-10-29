@@ -14,6 +14,7 @@ import { GameAudio } from './audio.js';
 import { SaveManager } from './save.js';
 import { GalleryManager } from './gallery.js';
 import { NetherRealm } from './nether.js';
+import { SkyCityRealm } from './skycity.js';
 import {
   DEFAULT_VISUAL_THEME_ID,
   VISUAL_THEME_STORAGE_KEY,
@@ -232,6 +233,8 @@ window.__MEIWEI_DEBUG__ = {
             techCity: state.game.world.techCity || null,
             geodes: (state.game.world.geodes || []).slice(0, 12),
             ruinedPortal: state.game.overworldWorld?.ruinedPortal || state.game.world.ruinedPortal || null,
+            skyPortal: state.game.overworldWorld?.skyPortal || state.game.world.skyPortal || null,
+            sky: state.game.sky ? { spawn: { ...state.game.sky.spawn }, returnPortal: { ...state.game.sky.returnPortal } } : null,
             nether: state.game.nether
               ? {
                   mobs: state.game.nether.mobs.length,
@@ -596,6 +599,7 @@ async function startAdventure(character, options = {}) {
       three: THREE,
       dimension: 'overworld',
       nether: null,
+      sky: null,
       overworldWorld: null,
       overworldReturn: null,
       overworldScene: null,
@@ -743,6 +747,11 @@ function tick(now) {
     game.interaction.update(delta);
     if (game.dimension === 'nether') {
       ui.setUnderwater(false);
+    } else if (game.dimension === 'sky') {
+      if (game.player.position.y < -8) {
+        game.player.teleport(game.sky.spawn.x, game.sky.spawn.y, game.sky.spawn.z);
+      }
+      ui.setUnderwater(false);
     } else {
       game.environment.update(delta, game.camera);
       const animalState = game.animals.update(delta, game.player.position);
@@ -785,15 +794,38 @@ function updatePortalTransition(game, delta) {
   let portal = null;
   let range = 1.5;
   if (game.dimension === 'overworld') {
-    const ruined = game.world.ruinedPortal;
-    if (!ruined) return;
-    portal = {
-      x: ruined.x,
-      y: ruined.baseY,
-      z: ruined.z,
-      minY: ruined.baseY,
-      maxY: ruined.baseY + 5,
-    };
+    const targets = [];
+    if (game.world.ruinedPortal) {
+      const ruined = game.world.ruinedPortal;
+      targets.push({
+        kind: 'nether',
+        x: ruined.x,
+        y: ruined.baseY,
+        z: ruined.z,
+        minY: ruined.baseY,
+        maxY: ruined.baseY + 5,
+      });
+    }
+    if (game.world.skyPortal) {
+      const sky = game.world.skyPortal;
+      targets.push({
+        kind: 'sky',
+        x: sky.x,
+        y: sky.y,
+        z: sky.z,
+        minY: sky.y,
+        maxY: sky.y + 5,
+      });
+    }
+    const near = targets
+      .map((target) => ({ ...target, distance: Math.hypot(player.position.x - target.x, player.position.z - target.z) }))
+      .filter((target) => target.distance < 1.6)
+      .sort((a, b) => a.distance - b.distance);
+    portal = near[0] || null;
+    if (!portal) {
+      state.portalDwell = 0;
+      return;
+    }
   } else if (game.dimension === 'nether' && game.nether) {
     portal = {
       x: game.nether.returnPortal.x,
@@ -801,6 +833,14 @@ function updatePortalTransition(game, delta) {
       z: game.nether.returnPortal.z,
       minY: game.nether.returnPortal.y,
       maxY: game.nether.returnPortal.y + 5,
+    };
+  } else if (game.dimension === 'sky' && game.sky) {
+    portal = {
+      x: game.sky.returnPortal.x,
+      y: game.sky.returnPortal.y,
+      z: game.sky.returnPortal.z,
+      minY: game.sky.returnPortal.y,
+      maxY: game.sky.returnPortal.y + 5,
     };
   }
   if (!portal) {
@@ -822,8 +862,11 @@ function updatePortalTransition(game, delta) {
   state.portalDwell += delta;
   if (state.portalDwell >= 0.65) {
     state.portalDwell = 0;
-    if (game.dimension === 'overworld') enterNether(game);
-    else exitNether(game);
+    if (game.dimension === 'overworld') {
+      if (portal.kind === 'sky') enterSkyCity(game);
+      else enterNether(game);
+    } else if (game.dimension === 'nether') exitNether(game);
+    else if (game.dimension === 'sky') exitSkyCity(game);
   }
 }
 
@@ -902,6 +945,76 @@ function exitNether(game) {
   persistGame('nether-return', { silent: true });
 }
 
+function enterSkyCity(game) {
+  if (!game || game.dimension !== 'overworld') return;
+  if (!game.sky) game.sky = new SkyCityRealm({ scene: game.scene });
+  const gate = game.world.skyPortal;
+  game.overworldWorld = game.world;
+  game.skyOverworldReturn = {
+    x: gate.x,
+    y: gate.y + 1.02,
+    z: gate.z + 3,
+    yaw: 0,
+    pitch: -0.02,
+  };
+  game.overworldScene = { background: game.scene.background, fog: game.scene.fog };
+  game.world.chunkGroup.visible = false;
+  game.world.landmarks.visible = false;
+  if (game.world.waterfallVisual) game.world.waterfallVisual.visible = false;
+  game.animals.group.visible = false;
+  game.environment.setVisible(false);
+  game.sky.setVisible(true);
+  game.scene.background = game.sky.background || new game.three.Color('#86d4ff');
+  game.scene.fog = new game.three.Fog('#c3edff', 28, 105);
+  game.world = game.sky;
+  game.dimension = 'sky';
+  game.player.world = game.sky;
+  game.interaction.world = game.sky;
+  game.player.setSpawn(game.sky.spawn);
+  game.player.setFlying(false);
+  game.player.setCameraMode('first');
+  game.player.teleport(game.sky.spawn.x, game.sky.spawn.y, game.sky.spawn.z);
+  game.player.yaw = 0;
+  game.interaction.hideTarget();
+  document.body.dataset.dimension = 'sky';
+  ui.setMinimapVisible(false);
+  ui.toastMessage('☁️ 欢迎来到云上科技城！玻璃穹顶、霓虹桥和瀑布都在等你。', 'good', 4600);
+  state.portalCooldown = 2.5;
+  state.portalHintShown = false;
+  updateHUD(game);
+}
+
+function exitSkyCity(game) {
+  if (!game || game.dimension !== 'sky' || !game.overworldWorld) return;
+  game.sky.setVisible(false);
+  game.scene.background = game.overworldScene?.background || null;
+  game.scene.fog = game.overworldScene?.fog || null;
+  game.environment.setVisible(true);
+  game.environment.setTheme(game.visualTheme);
+  game.world = game.overworldWorld;
+  game.dimension = 'overworld';
+  game.player.world = game.world;
+  game.interaction.world = game.world;
+  game.player.setSpawn(game.world.spawn);
+  game.player.setFlying(false);
+  game.player.setCameraMode('first');
+  const back = game.skyOverworldReturn;
+  game.player.teleport(back.x, back.y, back.z);
+  game.player.yaw = back.yaw;
+  game.world.chunkGroup.visible = true;
+  game.world.landmarks.visible = true;
+  if (game.world.waterfallVisual) game.world.waterfallVisual.visible = true;
+  game.animals.group.visible = true;
+  game.interaction.hideTarget();
+  document.body.dataset.dimension = 'overworld';
+  ui.setMinimapVisible(false);
+  ui.toastMessage('🌿 从云上科技城回到主世界啦。', 'good', 3600);
+  state.portalCooldown = 2.5;
+  state.portalHintShown = false;
+  updateHUD(game);
+  persistGame('sky-return', { silent: true });
+}
+
 function updateModeIndicator() {
   if (!state.game) return;
   const { player } = state.game;
@@ -968,12 +1081,15 @@ function toggleCameraView() {
 function updateHUD(game) {
   const position = game.player.position;
   const inNether = game.dimension === 'nether';
+  const inSky = game.dimension === 'sky';
   const surfaceY = game.world.heightAt(position.x, position.z);
-  const underground = !inNether && position.y < surfaceY - 3;
-  const inTechCity = !inNether && !underground && game.world.isInTechCity(position.x, position.z);
+  const underground = !inNether && !inSky && position.y < surfaceY - 3;
+  const inTechCity = !inNether && !inSky && !underground && game.world.isInTechCity(position.x, position.z);
   const biome = inNether
     ? { emoji: '🔥', name: '下界' }
-    : underground
+    : inSky
+      ? { emoji: '☁️', name: '云上科技城' }
+      : underground
       ? { emoji: '🪨', name: '地下洞穴' }
       : inTechCity
         ? { emoji: '🍔', name: '美味科技城' }
@@ -987,9 +1103,9 @@ function updateHUD(game) {
     fps: game.fps,
     position,
     biome: `${biome.emoji} ${biome.name}`,
-    time: inNether ? '—' : timeState.time,
-    weather: inNether ? '下界' : timeState.weather,
-    weatherEmoji: inNether ? '🔥' : timeState.weatherEmoji,
+    time: inNether || inSky ? '—' : timeState.time,
+    weather: inNether ? '下界' : inSky ? '云上' : timeState.weather,
+    weatherEmoji: inNether ? '🔥' : inSky ? '☁️' : timeState.weatherEmoji,
     chunks: game.world.getLoadedChunkCount(),
     character: game.character,
   });
@@ -998,7 +1114,7 @@ function updateHUD(game) {
 }
 
 function updateWaypoint(game) {
-  if (!game?.world || !game.player || game.dimension === 'nether') {
+  if (!game?.world || !game.player || (game.dimension && game.dimension !== 'overworld')) {
     ui.setWaypoint(null);
     return;
   }
@@ -1270,7 +1386,7 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyT') {
     if (event.repeat) return;
     if (state.paused) return;
-    if (state.game?.dimension === 'nether') {
+    if (state.game?.dimension && state.game.dimension !== 'overworld') {
       ui.toastMessage('下界没有天气变化，只有岩浆和红雾。', 'info', 2200);
       event.preventDefault();
       return;
@@ -1284,7 +1400,7 @@ function handleGlobalKeyDown(event) {
 
   if (event.code === 'KeyM') {
     if (event.repeat) return;
-    if (state.game?.dimension === 'nether') {
+    if (state.game?.dimension && state.game.dimension !== 'overworld') {
       ui.toastMessage('下界看不到主世界地图，先走回传送门吧。', 'info', 2600);
       event.preventDefault();
       return;
@@ -1303,7 +1419,7 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyN') {
     if (event.repeat) return;
     if (state.paused) return;
-    if (state.game?.dimension === 'nether') {
+    if (state.game?.dimension && state.game.dimension !== 'overworld') {
       ui.toastMessage('下界里小地图会迷失方向。', 'info', 2200);
       event.preventDefault();
       return;
@@ -1455,7 +1571,7 @@ function showMagnetHintIfNeeded() {
 
 function createSaveData() {
   const game = state.game;
-  if (!game || game.dimension === 'nether') return null;
+  if (!game || (game.dimension && game.dimension !== 'overworld')) return null;
   return {
     version: 1,
     savedAt: new Date().toISOString(),
@@ -1509,7 +1625,7 @@ function refreshHomeSaveUI() {
 
 function persistGame(reason = 'auto', { silent = false } = {}) {
   if (!state.game) return false;
-  if (state.game.dimension === 'nether') return false;
+  if (state.game.dimension && state.game.dimension !== 'overworld') return false;
   const data = createSaveData();
   const result = saveManager.writeSave(data);
   if (!result.ok) {
@@ -1551,7 +1667,7 @@ function continueSavedGame() {
 }
 
 function exportSavedGame() {
-  if (state.game?.dimension === 'nether') {
+  if (state.game?.dimension && state.game.dimension !== 'overworld') {
     ui.toastMessage('先回到主世界再导出存档吧。', 'info', 2600);
     return;
   }
@@ -1691,7 +1807,7 @@ function capturePhoto() {
 
 function openWorldMap() {
   if (!state.game || state.paused) return;
-  if (state.game.dimension === 'nether') {
+  if (state.game.dimension && state.game.dimension !== 'overworld') {
     ui.toastMessage('下界看不到主世界地图，先走回传送门吧。', 'info', 2600);
     return;
   }
@@ -1829,7 +1945,7 @@ function cleanupGame() {
   const game = state.game;
   if (!game) return;
   stopGameLoop();
-  cleanupPartial({ ...game, world: game.overworldWorld || game.world, nether: game.nether });
+  cleanupPartial({ ...game, world: game.overworldWorld || game.world, nether: game.nether, sky: game.sky });
   state.game = null;
 }
 
@@ -1838,6 +1954,7 @@ function cleanupPartial({
   scene,
   world,
   nether,
+  sky,
   environment,
   player,
   interaction,
@@ -1881,6 +1998,11 @@ function cleanupPartial({
     nether?.dispose();
   } catch (error) {
     console.warn('[美味特工队] 清理下界时出错：', error);
+  }
+  try {
+    sky?.dispose();
+  } catch (error) {
+    console.warn('[美味特工队] 清理云上科技城时出错：', error);
   }
   try {
     world?.dispose();

@@ -463,3 +463,9 @@ body[data-dimension='nether'] .game-color-wash {
 body[data-dimension='nether'] #hud .hud-card {
   border-color: rgba(255, 112, 64, 0.4);
 }
+
+body[data-dimension='sky'] .game-color-wash {
+  background:
+    radial-gradient(ellipse at center, transparent 45%, rgba(80, 157, 193, 0.18) 100%),
+    linear-gradient(180deg, rgba(255, 247, 195, 0.08), transparent 38%);
+}
