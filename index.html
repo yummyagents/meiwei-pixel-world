@@ -88,6 +88,12 @@
                 <input id="import-save-file" type="file" accept=".json,application/json" hidden />
               </div>
             </div>
+
+            <div class="home-community" aria-label="分享和支持">
+              <button id="btn-share-game" class="text-button" type="button">🔗 分享给伙伴</button>
+              <span aria-hidden="true">·</span>
+              <button id="btn-support-game" class="text-button" type="button">💛 家长赞助</button>
+            </div>
           </div>
 
           <div class="hero-art" aria-hidden="true">
@@ -263,6 +269,10 @@
               <span id="mode-indicator-icon" aria-hidden="true">🕊️</span><b id="mode-indicator-text">飞行中</b>
             </div>
 
+            <button id="btn-theme" class="status-pill theme-pill" type="button" aria-label="切换材质光影风格" title="材质光影">
+              <span aria-hidden="true">🎨</span><b>光影</b>
+            </button>
+
             <div id="mobile-game-tools" class="mobile-game-tools" aria-label="手机快捷功能">
               <button id="btn-mobile-map" class="mobile-game-tool" type="button" aria-label="打开世界地图" title="世界地图">🗺️</button>
               <button id="btn-mobile-fly" class="mobile-game-tool" type="button" aria-label="切换飞行" title="飞行">🕊️</button>
@@ -278,6 +288,11 @@
         </div>
 
         <div class="crosshair" aria-hidden="true"><span></span></div>
+
+        <div id="waypoint" class="waypoint is-hidden" aria-live="polite">
+          <span id="waypoint-arrow" class="waypoint-arrow" aria-hidden="true">↑</span>
+          <span class="waypoint-copy"><b id="waypoint-label">洞穴入口</b><small id="waypoint-distance">18 格</small></span>
+        </div>
 
         <div id="hotbar" class="hotbar" aria-label="快捷栏"></div>
 
@@ -318,7 +333,7 @@
           <span><kbd>1-9</kbd>/<kbd>滚轮</kbd> 方块</span>
           <span><kbd>E</kbd> 背包</span>
           <span><kbd>T</kbd> 天气 · <kbd>M</kbd> 大图 · <kbd>N</kbd> 小图 · <kbd>R</kbd> 出生点</span>
-          <span><kbd>F</kbd> 飞行 · <kbd>V</kbd> 视角</span>
+          <span><kbd>F</kbd> 飞行 · <kbd>V</kbd> 视角 · <kbd>G</kbd> 光影</span>
           <span><kbd>C</kbd> 拍照 · <kbd>P</kbd> 作品集</span>
           <span><kbd>Esc</kbd> 暂停</span>
         </div>
@@ -430,9 +445,67 @@
           <button id="btn-pause-controls" class="pixel-button pixel-button-light" type="button">
             🎮 操作说明
           </button>
+          <button id="btn-pause-theme" class="pixel-button pixel-button-light" type="button">
+            🎨 材质光影
+          </button>
           <button id="btn-pause-home" class="text-button" type="button">保存并回到首页</button>
         </div>
         <p class="modal-note">按 Esc 不会再自动继续，这样小朋友就不会误触啦。</p>
+      </div>
+    </div>
+
+    <!-- ============================ 分享 ============================ -->
+    <div id="overlay-share" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="share-title">
+      <div class="modal-card share-card">
+        <button id="btn-share-close-x" class="modal-close" type="button" aria-label="关闭分享">×</button>
+        <div class="eyebrow-badge"><span>🎁</span> 分享给伙伴</div>
+        <h2 id="share-title">一起玩，不用付钱</h2>
+        <p>把游戏链接发给小伙伴，他们打开就能免费玩。</p>
+        <div class="share-link-row">
+          <input id="share-link-input" class="share-link-input" type="text" readonly aria-label="游戏分享链接" />
+          <button id="btn-copy-share" class="mini-pixel-button" type="button">复制链接</button>
+        </div>
+        <button id="btn-system-share" class="pixel-button pixel-button-light pixel-button-wide is-hidden" type="button">
+          📲 用手机分享
+        </button>
+        <button id="btn-share-close" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+          知道啦
+        </button>
+        <p class="modal-note">分享免费，不会要求伙伴注册或付款。</p>
+      </div>
+    </div>
+
+    <!-- =========================== 家长赞助 =========================== -->
+    <div id="overlay-support" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="support-title">
+      <div class="modal-card support-card">
+        <button id="btn-support-close-x" class="modal-close" type="button" aria-label="关闭家长赞助">×</button>
+        <div class="eyebrow-badge eyebrow-badge-warm"><span>💛</span> 给家长的话</div>
+        <h2 id="support-title">游戏免费，赞助自愿</h2>
+        <p>《美味特工队》没有广告、没有内购、不需要注册，也不会收集小朋友的个人信息。</p>
+        <p>如果这个游戏让小朋友开心，家长可以自愿支持下一版本的开发。赞助不会解锁额外内容，也不影响正常游玩。</p>
+        <a id="btn-support-donate" class="pixel-button pixel-button-primary pixel-button-wide is-hidden" href="#" target="_blank" rel="noopener noreferrer">
+          💛 家长自愿赞助
+        </a>
+        <p id="support-unavailable" class="support-unavailable">赞助渠道还在准备中，先把游戏免费分享给伙伴吧。</p>
+        <button id="btn-support-close" class="pixel-button pixel-button-light pixel-button-wide" type="button">
+          知道啦
+        </button>
+        <p class="modal-note">请由家长操作。小朋友不需要在游戏里付钱。</p>
+      </div>
+    </div>
+
+    <!-- ========================== 材质光影 ========================== -->
+    <div id="overlay-theme" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="theme-title">
+      <div class="modal-card theme-card">
+        <button id="btn-theme-close-x" class="modal-close" type="button" aria-label="关闭材质光影">×</button>
+        <div class="eyebrow-badge"><span>🎨</span> 材质光影</div>
+        <h2 id="theme-title">换一种看世界的方式</h2>
+        <p>天空、雾、灯光、方块色调和界面颜色会一起变化。选择后会立即应用。</p>
+        <div id="theme-grid" class="theme-grid" role="list"></div>
+        <button id="btn-theme-close" class="pixel-button pixel-button-light pixel-button-wide" type="button">
+          完成
+        </button>
+        <p class="modal-note">喜欢原来的颜色随时可以换回“原版晴天”。</p>
       </div>
     </div>
 
@@ -590,6 +663,10 @@
           <div class="control-item">
             <div class="key-cluster"><kbd>V</kbd></div>
             <span><strong>第一 / 第三视角</strong><small>看一看自己的小特工</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>G</kbd></div>
+            <span><strong>材质光影</strong><small>切换原版晴天、樱花柔光和深岩霓虹</small></span>
           </div>
           <div class="control-item">
             <div class="key-cluster"><kbd>R</kbd></div>

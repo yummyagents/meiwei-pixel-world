@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { DEFAULT_VISUAL_THEME_ID, getVisualTheme } from './visual-themes.js';
 
 const DAY_TOP = new THREE.Color('#3f9ee8');
 const DAY_HORIZON = new THREE.Color('#c8f1ff');
@@ -33,7 +34,7 @@ function makeRandom(seed) {
 }
 
 export class Environment {
-  constructor({ scene, spawn, seed = 20261028 }) {
+  constructor({ scene, spawn, seed = 20261028, theme = null }) {
     this.scene = scene;
     this.seed = seed;
     this.spawn = spawn;
@@ -68,6 +69,9 @@ export class Environment {
     this._weatherElapsed = 0;
     this.setWeather('sunny');
 
+    this.motes = this._createAmbientMotes();
+    this.scene.add(this.motes.points);
+
     this.hemiLight = new THREE.HemisphereLight('#c7ecff', '#6f8859', 0.92);
     this.scene.add(this.hemiLight);
 
@@ -79,7 +83,35 @@ export class Environment {
     this.scene.add(this.sunLight);
 
     this.scene.fog = new THREE.Fog(DAY_HORIZON.clone(), 42, 96);
+    this.setTheme(theme || getVisualTheme(DEFAULT_VISUAL_THEME_ID));
+  }
+
+  setTheme(theme) {
+    this.theme = theme || getVisualTheme(DEFAULT_VISUAL_THEME_ID);
+    const env = this.theme.environment || {};
+    const make = (value, fallback) => new THREE.Color(value || fallback);
+    this.themeColors = {
+      dayTop: make(env.dayTop, DAY_TOP),
+      dayHorizon: make(env.dayHorizon, DAY_HORIZON),
+      nightTop: make(env.nightTop, NIGHT_TOP),
+      nightHorizon: make(env.nightHorizon, NIGHT_HORIZON),
+      sunsetTop: make(env.sunsetTop, SUNSET_TOP),
+      sunsetHorizon: make(env.sunsetHorizon, SUNSET_HORIZON),
+    };
+    this.hemiLight.color.set(env.hemiSky || '#c7ecff');
+    this.hemiLight.groundColor.set(env.hemiGround || '#6f8859');
+    this.ambientLight.color.set(env.ambient || '#dcecff');
+    this.sunLight.color.set(env.sun || '#fff2d2');
+    if (this.motes) this.motes.material.color.set(env.moteColor || '#fff0a8');
+    if (this.scene.fog) {
+      this.scene.fog.near = Number(env.fogNear) || 42;
+      this.scene.fog.far = Number(env.fogFar) || 96;
+    }
     this._updateCelestialBodies();
+  }
+
+  getTheme() {
+    return this.theme;
   }
 
   _createSky() {
@@ -184,6 +216,61 @@ export class Environment {
     group.userData.bodyMaterial = bodyMaterial;
     group.userData.glowTexture = glowTexture;
     return group;
+  }
+
+  _createAmbientMotes() {
+    const random = makeRandom(this.seed ^ 0x51a7c3);
+    const count = 90;
+    const positions = new Float32Array(count * 3);
+    const motes = [];
+    for (let i = 0; i < count; i += 1) {
+      const mote = {
+        x: (random() - 0.5) * 34,
+        y: 1 + random() * 10,
+        z: (random() - 0.5) * 34,
+        phase: random() * Math.PI * 2,
+        speed: 0.25 + random() * 0.55,
+      };
+      motes.push(mote);
+      positions[i * 3] = mote.x;
+      positions[i * 3 + 1] = mote.y;
+      positions[i * 3 + 2] = mote.z;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: '#fff0a8',
+      size: 0.09,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+      fog: true,
+    });
+    const points = new THREE.Points(geometry, material);
+    points.name = 'ambient-motes';
+    points.frustumCulled = false;
+    return { points, material, geometry, positions, motes };
+  }
+
+  _updateAmbientMotes(delta, camera) {
+    if (!this.motes || !camera) return;
+    const range = 20;
+    for (let i = 0; i < this.motes.motes.length; i += 1) {
+      const mote = this.motes.motes[i];
+      mote.phase += delta * mote.speed;
+      mote.x += Math.cos(mote.phase * 0.7) * delta * 0.08;
+      mote.z += Math.sin(mote.phase * 0.6) * delta * 0.08;
+      if (mote.x - camera.position.x > range) mote.x -= range * 2;
+      if (mote.x - camera.position.x < -range) mote.x += range * 2;
+      if (mote.z - camera.position.z > range) mote.z -= range * 2;
+      if (mote.z - camera.position.z < -range) mote.z += range * 2;
+      const i3 = i * 3;
+      this.motes.positions[i3] = mote.x;
+      this.motes.positions[i3 + 1] = mote.y + Math.sin(mote.phase) * 0.3;
+      this.motes.positions[i3 + 2] = mote.z;
+    }
+    this.motes.geometry.attributes.position.needsUpdate = true;
   }
 
   _createWeatherEffects() {
@@ -366,6 +453,10 @@ export class Environment {
     }
 
     this._updateWeather(delta, camera);
+    this._updateAmbientMotes(delta, camera);
+    if (this.motes) {
+      this.motes.material.opacity = 0.16 + (1 - this._dayFactor) * 0.34;
+    }
   }
 
   _updateCelestialBodies() {
@@ -385,13 +476,24 @@ export class Environment {
     this.sunGroup.visible = sunY > -18;
     this.moonGroup.visible = -sunY > -18;
 
+    const themeColors = this.themeColors || {
+      dayTop: DAY_TOP,
+      dayHorizon: DAY_HORIZON,
+      nightTop: NIGHT_TOP,
+      nightHorizon: NIGHT_HORIZON,
+      sunsetTop: SUNSET_TOP,
+      sunsetHorizon: SUNSET_HORIZON,
+    };
     const topColor = this.skyUniforms.topColor.value;
     const horizonColor = this.skyUniforms.horizonColor.value;
-    topColor.copy(NIGHT_TOP).lerp(DAY_TOP, dayFactor).lerp(SUNSET_TOP, sunsetFactor * 0.22);
+    topColor
+      .copy(themeColors.nightTop)
+      .lerp(themeColors.dayTop, dayFactor)
+      .lerp(themeColors.sunsetTop, sunsetFactor * 0.22);
     horizonColor
-      .copy(NIGHT_HORIZON)
-      .lerp(DAY_HORIZON, dayFactor)
-      .lerp(SUNSET_HORIZON, sunsetFactor * 0.72);
+      .copy(themeColors.nightHorizon)
+      .lerp(themeColors.dayHorizon, dayFactor)
+      .lerp(themeColors.sunsetHorizon, sunsetFactor * 0.72);
 
     if (this.weather === 'rain') {
       topColor.lerp(new THREE.Color('#627b90'), 0.42);
@@ -405,14 +507,16 @@ export class Environment {
       this.scene.fog.color.copy(horizonColor);
     }
 
-    const sunLightColor = new THREE.Color('#fff3d5').lerp(new THREE.Color('#ffb27b'), sunsetFactor * 0.55);
+    const env = this.theme?.environment || {};
+    const sunBase = new THREE.Color(env.sun || '#fff2d2');
+    const sunLightColor = sunBase.lerp(new THREE.Color('#ffb27b'), sunsetFactor * 0.55);
     this.sunLight.color.copy(sunLightColor);
     const weatherLightFactor = this.weather === 'rain' ? 0.58 : this.weather === 'snow' ? 0.84 : 1;
-    this.sunLight.intensity = (0.06 + dayFactor * 1.28) * weatherLightFactor;
+    this.sunLight.intensity = (0.06 + dayFactor * 1.28) * weatherLightFactor * (Number(env.sunScale) || 1);
     this.sunLight.position.set(sunX * 0.42, Math.max(12, sunY) * 0.52, sunZ * 0.42);
 
-    this.hemiLight.intensity = (0.3 + dayFactor * 0.72) * (this.weather === 'rain' ? 0.82 : 1);
-    this.ambientLight.intensity = (0.13 + dayFactor * 0.2) * (this.weather === 'rain' ? 0.9 : 1);
+    this.hemiLight.intensity = (0.3 + dayFactor * 0.72) * (this.weather === 'rain' ? 0.82 : 1) * (Number(env.hemiScale) || 1);
+    this.ambientLight.intensity = (0.13 + dayFactor * 0.2) * (this.weather === 'rain' ? 0.9 : 1) * (Number(env.ambientScale) || 1);
 
     this.cloudMaterial.color.copy(new THREE.Color('#aab9d8')).lerp(new THREE.Color('#ffffff'), dayFactor);
     if (this.weather === 'rain') this.cloudMaterial.color.lerp(new THREE.Color('#8d99a6'), 0.48);
@@ -514,5 +618,8 @@ export class Environment {
     this.weatherEffects.rain.material.dispose();
     this.weatherEffects.snow.geometry.dispose();
     this.weatherEffects.snow.material.dispose();
+    this.scene.remove(this.motes.points);
+    this.motes.geometry.dispose();
+    this.motes.material.dispose();
   }
 }

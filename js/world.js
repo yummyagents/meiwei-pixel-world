@@ -164,7 +164,7 @@ const NEXT_FRAME =
     : () => new Promise((resolve) => setTimeout(resolve, 0));
 
 export class World {
-  constructor({ scene, seed = DEFAULT_WORLD_SEED, renderDistance = 3 }) {
+  constructor({ scene, seed = DEFAULT_WORLD_SEED, renderDistance = 3, visualTheme = null }) {
     this.scene = scene;
     this.seed = Number.isFinite(Number(seed)) ? Number(seed) >>> 0 : DEFAULT_WORLD_SEED;
     this.renderDistance = Math.max(2, Math.min(5, Number(renderDistance) || 3));
@@ -232,6 +232,16 @@ export class World {
     this.scene.add(this.landmarks);
     this.waterfallVisual = this._createWaterfallVisual();
     if (this.waterfallVisual) this.scene.add(this.waterfallVisual);
+    this.applyVisualTheme(visualTheme);
+  }
+
+  applyVisualTheme(theme) {
+    this.visualTheme = theme || null;
+    const tint = theme?.worldTint || '#ffffff';
+    const waterTint = theme?.waterTint || '#ffffff';
+    this.solidMaterial.color.set(tint);
+    this.transparentMaterial.color.set(waterTint);
+    if (this.waterfallMaterial) this.waterfallMaterial.color.set(waterTint);
   }
 
   /* ----------------------------- 种子与噪声 ----------------------------- */
@@ -543,6 +553,7 @@ export class World {
     }
 
     this.caveEntrance = { x: cx + 0.5, z: cz + 0.5, y: floorY + 1, startY, roomZ };
+    this.exclusionZones.push({ x: cx, z: cz, radius: 7 });
   }
 
   findWaterfallSpot(spawn) {
@@ -1349,13 +1360,90 @@ export class World {
         localSet(lx - 3, roomY + 2, lz, BLOCK_IDS.TORCH);
         localSet(lx + 3, roomY + 2, lz, BLOCK_IDS.TORCH);
         localSet(lx, roomY, lz + 3, BLOCK_IDS.CHEST);
+
+        // 从房间东侧挖一个可以游进游出的水面竖井，并在草地里留下明显的矿井入口。
+        const shaftX = lx + 6;
+        const shaftZ = lz;
+        const shaftXs = [shaftX, shaftX + 1];
+        const shaftZs = [shaftZ, shaftZ + 1];
+        const surface = Math.max(
+          ...shaftXs.flatMap((x) => shaftZs.map((z) => this.heightAt(baseX + x, baseZ + z))),
+        );
+        // 清掉井口上方的树冠和石头，给矿井留出一块看得见的空地。
+        for (let x = shaftX - 3; x <= shaftX + 4; x += 1) {
+          for (let z = shaftZ - 3; z <= shaftZ + 4; z += 1) {
+            for (let y = surface + 1; y <= surface + 6; y += 1) {
+              localSet(x, y, z, BLOCK_IDS.AIR);
+            }
+          }
+        }
+        this.exclusionZones.push({ x: baseX + shaftX + 0.5, z: baseZ + shaftZ + 0.5, radius: 6 });
+
+        // 连接房间和竖井
+        for (let x = lx + 4; x <= shaftX - 1; x += 1) {
+          for (let z = shaftZ; z <= shaftZ + 1; z += 1) {
+            for (let y = roomY; y <= roomY + 2; y += 1) localSet(x, y, z, BLOCK_IDS.AIR);
+          }
+        }
+        // 2×2 水柱，玩家可以直接潜下去
+        for (const x of shaftXs) {
+          for (const z of shaftZs) {
+            for (let y = roomY + 1; y <= surface; y += 1) {
+              localSet(x, y, z, y === surface ? BLOCK_IDS.WATER : BLOCK_IDS.WATER);
+            }
+          }
+        }
+        // 石砖/铜边和地表井口
+        for (const x of [shaftX - 1, shaftX + 2]) {
+          for (const z of [shaftZ - 1, shaftZ + 2]) {
+            for (let y = roomY; y <= surface + 1; y += 1) {
+              localSet(x, y, z, y > surface - 1 ? BLOCK_IDS.STONE_BRICKS : BLOCK_IDS.COBBLESTONE);
+            }
+          }
+        }
+        for (let x = shaftX - 1; x <= shaftX + 2; x += 1) {
+          for (let z = shaftZ - 1; z <= shaftZ + 2; z += 1) {
+            if (x === shaftX - 1 || x === shaftX + 2 || z === shaftZ - 1 || z === shaftZ + 2) {
+              localSet(x, surface + 1, z, (x + z) % 3 === 0 ? BLOCK_IDS.COPPER : BLOCK_IDS.STONE_BRICKS);
+            }
+          }
+        }
+        // 四根木柱和深色木顶，远处也能看出“矿井”
+        for (const x of [shaftX - 1, shaftX + 2]) {
+          for (const z of [shaftZ - 1, shaftZ + 2]) {
+            for (let y = surface + 1; y <= surface + 4; y += 1) localSet(x, y, z, BLOCK_IDS.WOOD);
+          }
+        }
+        for (let x = shaftX - 1; x <= shaftX + 2; x += 1) {
+          for (let z = shaftZ - 1; z <= shaftZ + 2; z += 1) localSet(x, surface + 5, z, BLOCK_IDS.DARK_PLANKS);
+        }
+        localSet(shaftX, surface + 2, shaftZ - 1, BLOCK_IDS.TORCH);
+        localSet(shaftX + 1, surface + 2, shaftZ + 2, BLOCK_IDS.TORCH);
+
+        const entrance = {
+          x: baseX + shaftX + 0.5,
+          y: surface,
+          z: baseZ + shaftZ + 0.5,
+        };
         this.mineshafts.push({
           x: baseX + lx + 0.5,
           y: roomY + 1,
           z: baseZ + lz + 0.5,
           cx,
           cz,
+          entrance,
         });
+        if (this.landmarks) {
+          this._addWaypointMarker(
+            this.landmarks,
+            entrance.x,
+            entrance.y + 7,
+            entrance.z,
+            '🪜 废弃矿井',
+            '#7fe7ff',
+            1.7,
+          );
+        }
       }
     }
   }
@@ -1474,10 +1562,13 @@ export class World {
       if (localGet(lx, groundY, lz) !== BLOCK_IDS.GRASS) continue;
       if (localGet(lx, groundY + 1, lz) !== BLOCK_IDS.AIR) continue;
       const roll = random();
-      if (roll < 0.3) {
+      if (roll < 0.4) {
         localSet(lx, groundY + 1, lz, BLOCK_IDS.FLOWER);
-      } else if (biome === 'jungle' && roll < 0.46) {
+      } else if (biome === 'jungle' && roll < 0.5) {
         localSet(lx, groundY + 1, lz, BLOCK_IDS.VINE);
+      } else if ((biome === 'plains' || biome === 'cherry') && roll < 0.48) {
+        localSet(lx, groundY + 1, lz, BLOCK_IDS.LEAVES);
+        if (random() < 0.3) localSet(lx, groundY + 2, lz, BLOCK_IDS.LEAVES);
       }
     }
 
@@ -1747,6 +1838,25 @@ export class World {
     this._landmarkTime += delta;
     if (this.animatedBlades) {
       this.animatedBlades.rotation.z -= delta * 0.75;
+    }
+    if (this.waypointSprites) {
+      const labels = this.waypointSprites.filter((sprite) => sprite.userData.isLabel);
+      let nearestLabel = null;
+      let nearestLabelDistance = Infinity;
+      for (const sprite of labels) {
+        const distance = Math.hypot(sprite.position.x - playerPosition.x, sprite.position.z - playerPosition.z);
+        if (distance < nearestLabelDistance) {
+          nearestLabelDistance = distance;
+          nearestLabel = sprite;
+        }
+      }
+      for (const sprite of this.waypointSprites) {
+        sprite.position.y = sprite.userData.baseY + Math.sin(this._landmarkTime * 1.8 + sprite.userData.phase) * 0.18;
+        if (sprite.userData.isLabel) {
+          const distance = Math.hypot(sprite.position.x - playerPosition.x, sprite.position.z - playerPosition.z);
+          sprite.visible = sprite === nearestLabel && distance > 10.5 && distance < 110;
+        }
+      }
     }
     if (this.waterfallTexture) {
       this.waterfallTexture.offset.y -= delta * 0.8;
@@ -2100,7 +2210,94 @@ export class World {
       group.add(cloud);
     }
 
+    // 洞穴入口和废弃矿井的远处路标：光柱 + 悬浮名牌。
+    this.waypointSprites = [];
+    this.waypointMaterials = [];
+    this.waypointTextures = [];
+    if (this.caveEntrance) {
+      this._addWaypointMarker(
+        group,
+        this.caveEntrance.x,
+        this.caveEntrance.startY + 5.5,
+        this.caveEntrance.z,
+        '⛏ 洞穴入口',
+        '#ffd85e',
+        0,
+      );
+    }
+    for (const mine of this.mineshafts) {
+      const entrance = mine.entrance || mine;
+      this._addWaypointMarker(
+        group,
+        entrance.x,
+        (entrance.y || this.heightAt(entrance.x, entrance.z)) + 7,
+        entrance.z,
+        '🪜 废弃矿井',
+        '#7fe7ff',
+        1.7,
+      );
+    }
+
     return group;
+  }
+
+  _addWaypointMarker(parent, x, y, z, label, color, phase) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(20, 22, 24, 0.9)';
+    ctx.fillRect(4, 8, 504, 112);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(4, 8, 504, 112);
+    ctx.fillStyle = color;
+    ctx.fillRect(18, 20, 6, 88);
+    ctx.fillStyle = '#fffdf4';
+    ctx.font = 'bold 43px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, 256, 67);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(4.4, 1.1, 1);
+    sprite.position.set(x, y, z);
+    sprite.userData.baseY = y;
+    sprite.userData.phase = phase;
+    sprite.userData.isLabel = true;
+    sprite.userData.markerX = x;
+    sprite.userData.markerZ = z;
+    sprite.renderOrder = 20;
+    parent.add(sprite);
+    this.waypointSprites.push(sprite);
+    this.waypointMaterials.push(material);
+    this.waypointTextures.push(texture);
+
+    const beamMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.2,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+      side: THREE.DoubleSide,
+    });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.36, 17, 8), beamMaterial);
+    beam.position.set(x, y + 5.5, z);
+    beam.renderOrder = 19;
+    parent.add(beam);
+    this.waypointMaterials.push(beamMaterial);
+    this.waypointSprites.push(beam);
+    beam.userData.baseY = y + 5.5;
+    beam.userData.phase = phase + 0.7;
   }
 
   _createWaterfallVisual() {
@@ -2188,6 +2385,8 @@ export class World {
         if (object.geometry) object.geometry.dispose();
       });
     }
+    for (const material of this.waypointMaterials || []) material.dispose();
+    for (const texture of this.waypointTextures || []) texture.dispose();
     if (this.waterfallVisual) {
       this.waterfallVisual.traverse((object) => {
         if (object.geometry) object.geometry.dispose();

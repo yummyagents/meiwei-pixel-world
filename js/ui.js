@@ -4,8 +4,10 @@
  */
 
 import { CHARACTERS, getCharacter } from './characters.js';
-import { CREATIVE_BLOCKS, getBlock, getBlockColor } from './blocks.js';
+import { CREATIVE_BLOCKS, getBlock, getBlockColor, getBlockIconDataUrl } from './blocks.js';
 import { HOTBAR_SIZE, MAGNET_SLOT } from './inventory.js';
+import { GAME_CONFIG } from './config.js';
+import { VISUAL_THEMES, getVisualTheme } from './visual-themes.js';
 
 export class GameUI {
   constructor(callbacks = {}) {
@@ -77,6 +79,19 @@ export class GameUI {
     this.galleryOverlay = document.getElementById('overlay-gallery');
     this.galleryGrid = document.getElementById('gallery-grid');
     this.galleryEmpty = document.getElementById('gallery-empty');
+    this.shareOverlay = document.getElementById('overlay-share');
+    this.supportOverlay = document.getElementById('overlay-support');
+    this.shareLinkInput = document.getElementById('share-link-input');
+    this.shareCopyButton = document.getElementById('btn-copy-share');
+    this.shareSystemButton = document.getElementById('btn-system-share');
+    this.supportDonate = document.getElementById('btn-support-donate');
+    this.supportUnavailable = document.getElementById('support-unavailable');
+    this.themeOverlay = document.getElementById('overlay-theme');
+    this.themeGrid = document.getElementById('theme-grid');
+    this.waypoint = document.getElementById('waypoint');
+    this.waypointArrow = document.getElementById('waypoint-arrow');
+    this.waypointLabel = document.getElementById('waypoint-label');
+    this.waypointDistance = document.getElementById('waypoint-distance');
     this.worldMapOverlay = document.getElementById('overlay-worldmap');
     this.worldMapCanvas = document.getElementById('worldmap-canvas');
     this.worldMapLoading = document.getElementById('worldmap-loading');
@@ -198,6 +213,30 @@ export class GameUI {
     document.getElementById('btn-worldmap-close-x')?.addEventListener('click', () => {
       this.callbacks.onWorldMapClose?.();
     });
+    document.getElementById('btn-share-game')?.addEventListener('click', () => {
+      this.showShare();
+    });
+    document.getElementById('btn-support-game')?.addEventListener('click', () => {
+      this.showSupport();
+    });
+    for (const id of ['btn-share-close', 'btn-share-close-x']) {
+      document.getElementById(id)?.addEventListener('click', () => this.hideShare());
+    }
+    for (const id of ['btn-support-close', 'btn-support-close-x']) {
+      document.getElementById(id)?.addEventListener('click', () => this.hideSupport());
+    }
+    this.shareCopyButton?.addEventListener('click', () => this._copyShareLink());
+    this.shareSystemButton?.addEventListener('click', () => this._systemShare());
+    document.getElementById('btn-theme')?.addEventListener('click', () => this.callbacks.onOpenTheme?.());
+    document.getElementById('btn-pause-theme')?.addEventListener('click', () => this.callbacks.onOpenTheme?.());
+    for (const id of ['btn-theme-close', 'btn-theme-close-x']) {
+      document.getElementById(id)?.addEventListener('click', () => this.hideThemePicker());
+    }
+    this.themeGrid?.addEventListener('click', (event) => {
+      const card = event.target.closest('.theme-option');
+      if (card) this._selectTheme(card.dataset.themeId);
+    });
+
     document.getElementById('btn-gallery-close')?.addEventListener('click', () => {
       this.callbacks.onGalleryClose?.();
     });
@@ -278,7 +317,7 @@ export class GameUI {
           aria-label="选择${block.name}"
           title="选择${block.name}"
         >
-          <span class="creative-icon" aria-hidden="true">${block.icon}</span>
+          <span class="creative-icon block-texture" style="background-image:url('${getBlockIconDataUrl(blockId)}')" aria-hidden="true"></span>
           <strong>${block.name}</strong>
         </button>
       `;
@@ -339,6 +378,7 @@ export class GameUI {
       if (block) {
         return {
           icon: block.icon,
+          iconUrl: getBlockIconDataUrl(slot),
           name: block.name,
           color: getBlockColor(slot),
           magnet: false,
@@ -372,7 +412,9 @@ export class GameUI {
         title="第 ${index + 1} 格：${display.name}"
       >
         <span class="slot-number" aria-hidden="true">${index + 1}</span>
-        <span class="slot-icon ${display.magnet ? 'is-magnet' : ''}" style="--slot-color:${display.color}" aria-hidden="true">${display.icon}</span>
+        ${display.iconUrl
+          ? `<span class="slot-icon block-texture" style="background-image:url('${display.iconUrl}')" aria-hidden="true"></span>`
+          : `<span class="slot-icon ${display.magnet ? 'is-magnet' : ''}" style="--slot-color:${display.color}" aria-hidden="true">${display.icon}</span>`}
         ${display.magnet ? '<span class="hotbar-badge">磁铁</span>' : ''}
       </button>
     `;
@@ -519,6 +561,154 @@ export class GameUI {
     this._flashTimer = window.setTimeout(() => {
       this.cameraFlash.classList.remove('is-flashing');
     }, 520);
+  }
+
+  showShare() {
+    this.hideSupport();
+    const url = (() => {
+      try {
+        const link = new URL(window.location.href);
+        link.search = '';
+        link.hash = '';
+        return link.href;
+      } catch (error) {
+        return window.location.href.split(/[?#]/)[0];
+      }
+    })();
+    if (this.shareLinkInput) this.shareLinkInput.value = url;
+    if (this.shareCopyButton) this.shareCopyButton.textContent = '复制链接';
+    this.shareSystemButton?.classList.toggle('is-hidden', typeof navigator.share !== 'function');
+    this.shareOverlay?.classList.remove('is-hidden');
+    this.shareOverlay?.setAttribute('aria-hidden', 'false');
+    document.activeElement?.blur?.();
+    window.setTimeout(() => {
+      document.getElementById('btn-copy-share')?.focus({ preventScroll: true });
+    }, 30);
+  }
+
+  hideShare() {
+    this.shareOverlay?.classList.add('is-hidden');
+    this.shareOverlay?.setAttribute('aria-hidden', 'true');
+    document.activeElement?.blur?.();
+  }
+
+  isShareOpen() {
+    return Boolean(this.shareOverlay && !this.shareOverlay.classList.contains('is-hidden'));
+  }
+
+  async _copyShareLink() {
+    const url = this.shareLinkInput?.value || window.location.href;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch (error) {
+      try {
+        this.shareLinkInput?.select();
+        copied = document.execCommand('copy');
+      } catch (copyError) {
+        copied = false;
+      }
+    }
+    if (this.shareCopyButton) {
+      this.shareCopyButton.textContent = copied ? '已复制！' : '请手动复制';
+      window.setTimeout(() => {
+        if (this.shareCopyButton) this.shareCopyButton.textContent = '复制链接';
+      }, 1800);
+    }
+  }
+
+  async _systemShare() {
+    if (typeof navigator.share !== 'function') return;
+    try {
+      await navigator.share({
+        title: GAME_CONFIG.shareTitle || '美味特工队：像素方块世界',
+        text: '来和我一起玩《美味特工队：像素方块世界》吧！免费打开就能玩。',
+        url: this.shareLinkInput?.value || window.location.href,
+      });
+    } catch (error) {
+      // 用户取消分享时不提示。
+    }
+  }
+
+  showSupport() {
+    this.hideShare();
+    const url = typeof GAME_CONFIG.supportUrl === 'string' ? GAME_CONFIG.supportUrl.trim() : '';
+    if (this.supportDonate && GAME_CONFIG.supportLabel) {
+      this.supportDonate.textContent = `💛 ${GAME_CONFIG.supportLabel}`;
+    }
+    this.supportDonate?.classList.toggle('is-hidden', !url);
+    this.supportUnavailable?.classList.toggle('is-hidden', Boolean(url));
+    if (url && this.supportDonate) this.supportDonate.href = url;
+    this.supportOverlay?.classList.remove('is-hidden');
+    this.supportOverlay?.setAttribute('aria-hidden', 'false');
+    document.activeElement?.blur?.();
+    window.setTimeout(() => {
+      document.getElementById('btn-support-close')?.focus({ preventScroll: true });
+    }, 30);
+  }
+
+  hideSupport() {
+    this.supportOverlay?.classList.add('is-hidden');
+    this.supportOverlay?.setAttribute('aria-hidden', 'true');
+    document.activeElement?.blur?.();
+  }
+
+  isSupportOpen() {
+    return Boolean(this.supportOverlay && !this.supportOverlay.classList.contains('is-hidden'));
+  }
+
+  showThemePicker(activeId = 'classic') {
+    this._renderThemeGrid(activeId);
+    this.themeOverlay?.classList.remove('is-hidden');
+    this.themeOverlay?.setAttribute('aria-hidden', 'false');
+    document.activeElement?.blur?.();
+    window.setTimeout(() => {
+      const active = this.themeGrid?.querySelector('.theme-option.is-active');
+      (active || document.getElementById('btn-theme-close'))?.focus({ preventScroll: true });
+    }, 30);
+  }
+
+  hideThemePicker() {
+    this.themeOverlay?.classList.add('is-hidden');
+    this.themeOverlay?.setAttribute('aria-hidden', 'true');
+    document.activeElement?.blur?.();
+    this.callbacks.onThemeClose?.();
+  }
+
+  isThemeOpen() {
+    return Boolean(this.themeOverlay && !this.themeOverlay.classList.contains('is-hidden'));
+  }
+
+  _renderThemeGrid(activeId) {
+    if (!this.themeGrid) return;
+    this.themeGrid.innerHTML = VISUAL_THEMES.map((theme) => `
+      <button class="theme-option ${theme.id === activeId ? 'is-active' : ''}" type="button" data-theme-id="${theme.id}" role="listitem">
+        <span class="theme-swatches" aria-hidden="true">
+          ${theme.swatches.map((color) => `<i style="--swatch:${color}"></i>`).join('')}
+        </span>
+        <span class="theme-option-copy">
+          <strong>${theme.icon} ${theme.name}</strong>
+          <small>${theme.subtitle}</small>
+        </span>
+        <span class="theme-check" aria-hidden="true">✓</span>
+      </button>
+    `).join('');
+  }
+
+  _selectTheme(id) {
+    const theme = getVisualTheme(id);
+    this.themeGrid?.querySelectorAll('.theme-option').forEach((card) => {
+      card.classList.toggle('is-active', card.dataset.themeId === theme.id);
+    });
+    this.callbacks.onVisualThemeSelect?.(theme.id);
+  }
+
+  setThemeActive(id) {
+    const theme = getVisualTheme(id);
+    this.themeGrid?.querySelectorAll('.theme-option').forEach((card) => {
+      card.classList.toggle('is-active', card.dataset.themeId === theme.id);
+    });
   }
 
   showGallery(photos = []) {
@@ -722,6 +912,16 @@ export class GameUI {
     this.questPanel?.classList.toggle('is-complete', state.allComplete);
   }
 
+  setWaypoint(info) {
+    if (!this.waypoint) return;
+    const visible = Boolean(info);
+    this.waypoint.classList.toggle('is-hidden', !visible);
+    if (!visible) return;
+    if (this.waypointLabel) this.waypointLabel.textContent = info.label || '附近地点';
+    if (this.waypointDistance) this.waypointDistance.textContent = `${Math.max(0, Math.round(info.distance || 0))} 格`;
+    if (this.waypointArrow) this.waypointArrow.style.transform = `rotate(${info.angle || 0}rad)`;
+  }
+
   updateHUD({ fps, position, biome, time, weather, weatherEmoji, chunks, character }) {
     if (this.hud.fps) this.hud.fps.textContent = String(Math.round(fps));
     if (this.hud.coords && position) {
@@ -800,6 +1000,9 @@ export class GameUI {
       this.inventoryOverlay,
       this.galleryOverlay,
       this.worldMapOverlay,
+      this.shareOverlay,
+      this.supportOverlay,
+      this.themeOverlay,
     ]) {
       overlay?.classList.add('is-hidden');
       overlay?.setAttribute('aria-hidden', 'true');

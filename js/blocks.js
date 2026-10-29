@@ -635,6 +635,34 @@ export function getBlockName(id) {
   return BLOCKS[id]?.name || '空气';
 }
 
+
+const blockIconCache = new Map();
+let blockIconAtlas = null;
+
+/** 从方块图集裁出一张像素图标，给快捷栏和创造背包使用。 */
+export function getBlockIconDataUrl(blockId) {
+  if (blockIconCache.has(blockId)) return blockIconCache.get(blockId);
+  const block = getBlock(blockId);
+  if (!block || typeof document === 'undefined') return '';
+  try {
+    if (!blockIconAtlas) blockIconAtlas = createBlockAtlasCanvas();
+    const tile = block.tiles?.top ?? block.tiles?.side ?? 0;
+    const sx = (tile % ATLAS_COLS) * TILE_SIZE;
+    const sy = Math.floor(tile / ATLAS_COLS) * TILE_SIZE;
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(blockIconAtlas, sx, sy, TILE_SIZE, TILE_SIZE, 0, 0, 32, 32);
+    const dataUrl = canvas.toDataURL('image/png');
+    blockIconCache.set(blockId, dataUrl);
+    return dataUrl;
+  } catch (error) {
+    return '';
+  }
+}
+
 /**
  * 画一张 8×4 格的像素图集。
  * 使用 Canvas 生成，不需要下载贴图，部署后不会出现 404。

@@ -1,0 +1,441 @@
+/* ==========================================================
+   方块世界视觉升级：像素边框、材质图标、HUD 与光影主题
+   ========================================================== */
+
+:root {
+  --mc-panel: rgba(20, 22, 24, 0.82);
+  --mc-panel-soft: rgba(42, 44, 45, 0.86);
+  --mc-edge: #0d0e0f;
+  --mc-edge-light: rgba(255, 255, 255, 0.24);
+  --mc-accent: #f4c542;
+  --mc-text: #f5f1df;
+  --mc-muted: #b8b3a0;
+}
+
+body[data-visual-theme='sakura'] {
+  --mc-panel: rgba(52, 28, 42, 0.84);
+  --mc-panel-soft: rgba(78, 42, 62, 0.88);
+  --mc-edge: #2a1521;
+  --mc-edge-light: rgba(255, 222, 235, 0.3);
+  --mc-accent: #ef9cbd;
+  --mc-text: #fff4f7;
+  --mc-muted: #e3becd;
+}
+
+body[data-visual-theme='neon'] {
+  --mc-panel: rgba(5, 23, 28, 0.88);
+  --mc-panel-soft: rgba(9, 37, 44, 0.9);
+  --mc-edge: #031014;
+  --mc-edge-light: rgba(93, 255, 236, 0.35);
+  --mc-accent: #ff6bb5;
+  --mc-text: #e8fffb;
+  --mc-muted: #84cfc9;
+}
+
+/* 游戏 HUD：更接近方块游戏的硬边深色面板 */
+.hud-panel,
+.quest-panel,
+.minimap-panel {
+  border: 2px solid var(--mc-edge);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 38%),
+    var(--mc-panel);
+  box-shadow:
+    inset 0 0 0 2px var(--mc-edge-light),
+    0 5px 0 rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.hud-panel {
+  color: var(--mc-text);
+}
+
+.hud-character {
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+.hud-character-emoji {
+  border: 2px solid var(--mc-edge);
+  border-radius: 2px;
+  background: var(--mc-panel-soft);
+  box-shadow: inset 0 0 0 1px var(--mc-edge-light);
+}
+
+.hud-character-copy span,
+.hud-character-copy small,
+.hud-stat {
+  color: var(--mc-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.hud-character-copy strong {
+  color: var(--mc-text);
+}
+
+.hud-stat b {
+  color: #fff;
+}
+
+.status-pill {
+  border: 2px solid var(--mc-edge);
+  border-radius: 2px;
+  background: var(--mc-panel);
+  color: var(--mc-text);
+  box-shadow: inset 0 0 0 1px var(--mc-edge-light);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.theme-pill {
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+.theme-pill:hover {
+  border-color: var(--mc-accent);
+  background: var(--mc-panel-soft);
+}
+
+/* 快捷栏：宽大的灰色方块槽位 */
+.hotbar {
+  gap: 3px;
+  padding: 5px;
+  border: 3px solid var(--mc-edge);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 25%),
+    rgba(18, 19, 20, 0.86);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.13),
+    0 5px 0 rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.hotbar-slot {
+  border: 2px solid #262626;
+  border-top-color: #b7b7b7;
+  border-left-color: #b7b7b7;
+  border-radius: 1px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.13), transparent 38%),
+    #6c6c6c;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+  transition: border-color 0.08s linear, transform 0.08s linear;
+}
+
+.hotbar-slot:hover {
+  border-color: #ececec;
+  background-color: #858585;
+}
+
+.hotbar-slot.is-selected {
+  z-index: 2;
+  border-color: #fff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 42%),
+    #8d8d8d;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px #1a1a1a,
+    0 4px 0 rgba(0, 0, 0, 0.3);
+  transform: translateY(-4px);
+}
+
+.hotbar-slot.is-selected::before {
+  height: 2px;
+  background: #fff;
+}
+
+.slot-number {
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-shadow: 1px 1px 0 #1c1c1c;
+}
+
+.slot-icon {
+  border-radius: 0;
+  background-color: rgba(0, 0, 0, 0.12);
+  filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, 0.3));
+  transform: translateY(1px);
+}
+
+.slot-icon.is-magnet {
+  border-radius: 1px;
+}
+
+.slot-icon.block-texture {
+  width: 82%;
+  height: 82%;
+  border: 1px solid rgba(0, 0, 0, 0.42);
+  background-color: #888;
+  background-position: center;
+  background-size: cover;
+  image-rendering: pixelated;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.22),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.creative-icon.block-texture {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 6px;
+  border: 1px solid rgba(33, 30, 22, 0.42);
+  background-position: center;
+  background-size: cover;
+  image-rendering: pixelated;
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.25),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.18);
+}
+
+/* 弹窗：像方块游戏的石头菜单，但仍保留大字号可读性 */
+.modal-card,
+.inventory-card {
+  border: 3px solid var(--mc-edge);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 10%),
+    #d8d2c4;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.55),
+    inset 0 0 0 4px rgba(86, 78, 61, 0.18),
+    0 7px 0 rgba(0, 0, 0, 0.25);
+}
+
+.modal-card h2 {
+  color: #302b21;
+}
+
+.modal-note {
+  color: #6f6657;
+}
+
+/* 材质光影选择 */
+.theme-card {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+}
+
+.theme-card > p {
+  margin: 8px 0 16px;
+  color: #625a4d;
+  line-height: 1.6;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.theme-option {
+  position: relative;
+  display: flex;
+  min-height: 154px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 13px;
+  border: 2px solid #766b58;
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 45%),
+    #c9c1b1;
+  color: #3b352c;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.28),
+    0 3px 0 rgba(64, 55, 43, 0.25);
+}
+
+.theme-option:hover {
+  border-color: #3b3327;
+  background-color: #e0d8c7;
+}
+
+.theme-option.is-active {
+  border-color: #2d261e;
+  background-color: #f4ecd9;
+  box-shadow:
+    inset 0 0 0 2px #fff,
+    0 0 0 3px var(--mc-accent),
+    0 4px 0 rgba(64, 55, 43, 0.25);
+}
+
+.theme-swatches {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  height: 34px;
+}
+
+.theme-swatches i {
+  flex: 1;
+  border: 1px solid rgba(38, 31, 24, 0.35);
+  background: var(--swatch);
+}
+
+.theme-option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.theme-option-copy strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.theme-option-copy small {
+  color: #746b5d;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.theme-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: none;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 2px solid #285b38;
+  border-radius: 2px;
+  background: #6fcf5d;
+  color: #fff;
+  font-weight: 900;
+}
+
+.theme-option.is-active .theme-check {
+  display: grid;
+}
+
+/* 三个主题的界面配色 */
+body[data-visual-theme='sakura'] .home-screen {
+  background:
+    linear-gradient(180deg, #e9a8c4 0%, #f8d7d8 44%, #ffe8e3 70%, #f7d9df 100%);
+}
+
+body[data-visual-theme='sakura'] .hud-character-emoji {
+  background: rgba(239, 156, 189, 0.22);
+}
+
+body[data-visual-theme='sakura'] .crosshair::before,
+body[data-visual-theme='sakura'] .crosshair::after {
+  background: #fff4f7;
+}
+
+body[data-visual-theme='neon'] .home-screen {
+  background:
+    linear-gradient(180deg, #071d2a 0%, #0d3440 40%, #14362f 70%, #101b26 100%);
+}
+
+body[data-visual-theme='neon'] .home-screen .game-title,
+body[data-visual-theme='neon'] .home-welcome,
+body[data-visual-theme='neon'] .home-footnote,
+body[data-visual-theme='neon'] .home-community {
+  color: #e0fff9;
+  text-shadow: 0 2px 0 #061016;
+}
+
+body[data-visual-theme='neon'] .home-screen::after {
+  background:
+    radial-gradient(ellipse 58% 100% at 18% 100%, #1c715f 0 62%, transparent 63%),
+    radial-gradient(ellipse 62% 100% at 83% 100%, #113b45 0 62%, transparent 63%),
+    linear-gradient(180deg, transparent 0 30%, #102b2d 31%);
+}
+
+body[data-visual-theme='neon'] .hud-character-emoji {
+  box-shadow: 0 0 12px rgba(90, 244, 231, 0.38);
+}
+
+body[data-visual-theme='neon'] .hotbar {
+  border-color: #020809;
+  box-shadow:
+    inset 0 0 0 2px rgba(93, 255, 236, 0.18),
+    0 0 16px rgba(60, 255, 235, 0.14);
+}
+
+@media (max-width: 760px) {
+  .theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-option {
+    min-height: 92px;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .theme-swatches {
+    width: 64px;
+    flex: 0 0 64px;
+    height: 44px;
+  }
+
+  .theme-option-copy {
+    flex: 1;
+  }
+}
+
+/* 靠近洞口/矿井时的方向提示 */
+.waypoint {
+  position: absolute;
+  z-index: 5;
+  top: 57%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border: 2px solid var(--mc-edge, #0d0e0f);
+  border-radius: 2px;
+  background: var(--mc-panel, rgba(20, 22, 24, 0.82));
+  box-shadow:
+    inset 0 0 0 1px var(--mc-edge-light, rgba(255, 255, 255, 0.24)),
+    0 4px 0 rgba(0, 0, 0, 0.22);
+  color: var(--mc-text, #f5f1df);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.waypoint.is-hidden {
+  display: none;
+}
+
+.waypoint-arrow {
+  display: inline-block;
+  color: var(--mc-accent, #f4c542);
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.16s ease-out;
+}
+
+.waypoint-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.waypoint-copy b {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.waypoint-copy small {
+  color: var(--mc-muted, #b8b3a0);
+  font-size: 11px;
+  font-weight: 700;
+}

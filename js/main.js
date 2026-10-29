@@ -13,6 +13,11 @@ import { Inventory, MAGNET_SLOT_INDEX } from './inventory.js';
 import { GameAudio } from './audio.js';
 import { SaveManager } from './save.js';
 import { GalleryManager } from './gallery.js';
+import {
+  DEFAULT_VISUAL_THEME_ID,
+  VISUAL_THEME_STORAGE_KEY,
+  getVisualTheme,
+} from './visual-themes.js';
 
 const state = {
   selectedCharacter: null,
@@ -24,11 +29,14 @@ const state = {
   lastSaveAt: null,
   saveErrorShown: false,
   techCitySeen: false,
+  visualThemeId: readVisualThemeId(),
+  themeResumeOnClose: false,
 };
 
 const audio = new GameAudio();
 const saveManager = new SaveManager();
 const gallery = new GalleryManager();
+document.body.dataset.visualTheme = state.visualThemeId;
 
 const ui = new GameUI({
   onCharacterSelected: (character) => {
@@ -106,6 +114,18 @@ const ui = new GameUI({
   },
   onWorldMapClose: () => {
     closeWorldMap();
+  },
+  onOpenTheme: () => {
+    openThemePicker();
+  },
+  onVisualThemeSelect: (themeId) => {
+    setVisualTheme(themeId);
+  },
+  onThemeClose: () => {
+    if (state.themeResumeOnClose && state.pausedReason === 'theme') {
+      state.themeResumeOnClose = false;
+      resumeGame();
+    }
   },
 });
 
@@ -208,6 +228,7 @@ window.__MEIWEI_DEBUG__ = {
               state.game.player.position.x,
               state.game.player.position.z,
             ),
+            visualThemeId: state.game.visualTheme?.id || state.visualThemeId,
             caveEntrance: state.game.world.caveEntrance || null,
             biomeAtPlayer: state.game.world.biomeAt(
               state.game.player.position.x,
@@ -391,10 +412,12 @@ async function startAdventure(character, options = {}) {
       seed = Math.floor(Math.random() * 2000000000) + 1;
     }
 
+    const visualTheme = getVisualTheme(state.visualThemeId);
     world = new World({
       scene,
       seed,
       renderDistance: GAME_CONFIG.renderDistance,
+      visualTheme,
     });
     if (saveData) {
       world.loadModifications(saveData.world.modifications);
@@ -403,6 +426,7 @@ async function startAdventure(character, options = {}) {
       scene,
       spawn: world.spawn,
       seed: world.seed,
+      theme: visualTheme,
     });
     if (saveData?.environment) {
       environment.setTimeMinutes(saveData.environment.timeMinutes);
@@ -541,6 +565,7 @@ async function startAdventure(character, options = {}) {
       camera,
       world,
       environment,
+      visualTheme,
       player,
       inventory,
       interaction,
@@ -722,6 +747,40 @@ function updateModeIndicator() {
   ui.setMobileToolActive('view', player.cameraMode === 'third');
 }
 
+function readVisualThemeId() {
+  try {
+    return getVisualTheme(window.localStorage.getItem(VISUAL_THEME_STORAGE_KEY)).id;
+  } catch (error) {
+    return DEFAULT_VISUAL_THEME_ID;
+  }
+}
+
+function openThemePicker() {
+  if (!state.game || state.starting) return;
+  state.themeResumeOnClose = !state.paused;
+  if (!state.paused) pauseGame('theme');
+  ui.showThemePicker(state.visualThemeId);
+}
+
+function setVisualTheme(themeId, { announce = true } = {}) {
+  const theme = getVisualTheme(themeId);
+  state.visualThemeId = theme.id;
+  document.body.dataset.visualTheme = theme.id;
+  try {
+    localStorage.setItem(VISUAL_THEME_STORAGE_KEY, theme.id);
+  } catch (error) {
+    // 无痕模式不阻止切换，只是不记住。
+  }
+  if (state.game) {
+    state.game.visualTheme = theme;
+    state.game.environment.setTheme(theme);
+    state.game.world.applyVisualTheme(theme);
+  }
+  ui.setThemeActive(theme.id);
+  if (announce) ui.toastMessage(`🎨 已切换：${theme.name}`, 'good', 2400);
+  if (state.game) updateHUD(state.game);
+}
+
 function toggleFlight() {
   if (!state.game || state.paused) return;
   const flying = state.game.player.toggleFlying();
@@ -766,6 +825,47 @@ function updateHUD(game) {
     character: game.character,
   });
   ui.updateQuests(game.quests.getState());
+  updateWaypoint(game);
+}
+
+function updateWaypoint(game) {
+  if (!game?.world || !game.player) {
+    ui.setWaypoint(null);
+    return;
+  }
+  const px = game.player.position.x;
+  const pz = game.player.position.z;
+  const targets = [];
+  if (game.world.caveEntrance) {
+    targets.push({
+      label: '⛏ 洞穴入口',
+      x: game.world.caveEntrance.x,
+      z: game.world.caveEntrance.z,
+    });
+  }
+  for (const mine of game.world.mineshafts || []) {
+    const entrance = mine.entrance || mine;
+    targets.push({ label: '🪜 废弃矿井', x: entrance.x, z: entrance.z });
+  }
+  let nearest = null;
+  let nearestDistance = 42;
+  for (const target of targets) {
+    const distance = Math.hypot(target.x - px, target.z - pz);
+    if (distance < nearestDistance) {
+      nearest = target;
+      nearestDistance = distance;
+    }
+  }
+  if (!nearest) {
+    ui.setWaypoint(null);
+    return;
+  }
+  const angle = Math.atan2(nearest.x - px, -(nearest.z - pz)) - game.player.yaw;
+  ui.setWaypoint({
+    label: nearest.label,
+    distance: nearestDistance,
+    angle,
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -851,10 +951,35 @@ function handlePointerLockError({ message }) {
 }
 
 function handleGlobalKeyDown(event) {
+  if (event.code === 'Escape' && ui.isThemeOpen()) {
+    ui.hideThemePicker();
+    event.preventDefault();
+    return;
+  }
+  if (event.code === 'Escape' && ui.isShareOpen()) {
+    ui.hideShare();
+    event.preventDefault();
+    return;
+  }
+  if (event.code === 'Escape' && ui.isSupportOpen()) {
+    ui.hideSupport();
+    event.preventDefault();
+    return;
+  }
   if (isTypingTarget(event.target)) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
 
   if (event.code === 'Escape') {
+    if (ui.isShareOpen()) {
+      ui.hideShare();
+      event.preventDefault();
+      return;
+    }
+    if (ui.isSupportOpen()) {
+      ui.hideSupport();
+      event.preventDefault();
+      return;
+    }
     if (ui.isWorldMapOpen()) {
       closeWorldMap();
       event.preventDefault();
@@ -925,6 +1050,13 @@ function handleGlobalKeyDown(event) {
   const digitMatch = /^(?:Digit|Numpad)([1-9])$/.exec(event.code);
   if (digitMatch && !state.paused && !ui.isInventoryOpen()) {
     selectHotbar(Number(digitMatch[1]) - 1);
+    event.preventDefault();
+    return;
+  }
+
+  if (event.code === 'KeyG') {
+    if (event.repeat || !state.game || document.body.dataset.screen !== 'game') return;
+    openThemePicker();
     event.preventDefault();
     return;
   }
@@ -1319,7 +1451,27 @@ function capturePhoto() {
     ui.flashCamera();
     ui.updateGallery(result.photos);
     audio.playCamera();
-    ui.toastMessage('📸 拍照成功！按 P 看作品集。', 'good', 2600);
+    if (result.storage === 'memory') {
+      ui.toastMessage(
+        '浏览器不让长期保存照片，这张先放在本次作品集里；刷新页面后会消失。',
+        'warn',
+        4600,
+      );
+    } else if (result.storage === 'session') {
+      ui.toastMessage(
+        '浏览器长期存储满了，这张先保存在当前标签页的相册里。',
+        'warn',
+        4200,
+      );
+    } else if (result.pruned) {
+      ui.toastMessage(
+        `相册空间有点紧，我保留了最新的 ${result.photos.length} 张，旧照片先让位啦。`,
+        'warn',
+        4200,
+      );
+    } else {
+      ui.toastMessage('📸 拍照成功！按 P 看作品集。', 'good', 2600);
+    }
     return true;
   } catch (error) {
     ui.toastMessage('拍照失败，再试一次吧。', 'warn', 2800);

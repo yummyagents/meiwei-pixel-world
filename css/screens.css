@@ -1245,3 +1245,96 @@
 .preview-emoji.is-hidden {
   display: none;
 }
+
+/* 分享给伙伴与家长赞助 */
+.home-community {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  color: #567482;
+}
+
+.home-community > span {
+  opacity: 0.55;
+}
+
+.home-community .text-button {
+  padding: 6px 8px;
+  color: #2f6574;
+  font-size: 14px;
+}
+
+.share-card,
+.support-card {
+  width: min(560px, calc(100vw - 32px));
+  max-width: 560px;
+  text-align: left;
+}
+
+.share-card h2,
+.support-card h2 {
+  margin: 12px 0 10px;
+}
+
+.share-card > p,
+.support-card > p {
+  margin: 0 0 14px;
+  color: #5d6174;
+  line-height: 1.65;
+}
+
+.share-link-row {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.share-link-input {
+  min-width: 0;
+  flex: 1;
+  padding: 12px 13px;
+  border: 2px solid #d8cdb9;
+  border-radius: 12px;
+  background: #fffdf8;
+  color: #3c3a4d;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.share-link-input:focus {
+  outline: 3px solid rgba(255, 202, 58, 0.55);
+  outline-offset: 2px;
+}
+
+.share-card .pixel-button + .pixel-button {
+  margin-top: 10px;
+}
+
+.support-unavailable {
+  padding: 12px 14px;
+  border: 2px dashed #e4c98f;
+  border-radius: 12px;
+  background: #fff8df;
+  color: #8a6a30;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.support-unavailable.is-hidden {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .share-link-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .share-link-input {
+    width: 100%;
+  }
+}

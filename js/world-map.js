@@ -156,7 +156,8 @@ export class WorldMap {
       addMarker(this.world.techCity.x, this.world.techCity.z, '#8fffe3', 8);
     }
     for (const mine of this.world.mineshafts || []) {
-      addMarker(mine.x, mine.z, '#c79a66', 4);
+      const point = mine.entrance || mine;
+      addMarker(point.x, point.z, '#c79a66', 5);
     }
     if (this.world.landmarkSpot) {
       addMarker(this.world.landmarkSpot.x, this.world.landmarkSpot.z, '#ffffff', 4);
@@ -164,6 +165,37 @@ export class WorldMap {
     const highest = this.baseStats?.highestMountain;
     if (highest && highest.height >= 20) {
       addMarker(highest.x, highest.z, '#e8eef3', 6, 'triangle');
+    }
+
+    // 洞口和矿洞也加短标签，走到附近更容易确认。
+    const labelMarker = (x, z, text, color, offsetX = 8, offsetY = -12) => {
+      if (!this._inside(x, z)) return;
+      const point = this._toPixel(x, z);
+      ctx.save();
+      ctx.font = 'bold 10px "PingFang SC", "Microsoft YaHei", sans-serif';
+      const textWidth = ctx.measureText(text).width;
+      const lx = point.x + offsetX;
+      const ly = point.y + offsetY;
+      ctx.strokeStyle = 'rgba(20, 22, 24, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(lx + (offsetX < 0 ? textWidth + 4 : -4), ly + 7);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(20, 22, 24, 0.82)';
+      ctx.fillRect(lx, ly, textWidth + 7, 14);
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, lx + 4, ly + 7);
+      ctx.restore();
+    };
+    if (this.world.caveEntrance) {
+      labelMarker(this.world.caveEntrance.x, this.world.caveEntrance.z, '洞穴入口', '#ffd85e', -10, -25);
+    }
+    for (const mine of this.world.mineshafts || []) {
+      const point = mine.entrance || mine;
+      labelMarker(point.x, point.z, '废弃矿井', '#c79a66', 10, 16);
     }
 
     // 科技城单独加一个小名字，避免和青色瀑布点混在一起。
