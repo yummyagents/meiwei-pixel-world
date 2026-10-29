@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#77c9ff" />
+    <meta
+      name="description"
+      content="美味特工队：像素方块世界，一款适合小朋友的 3D 像素方块探索游戏。"
+    />
+    <title>美味特工队：像素方块世界</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <link rel="stylesheet" href="./css/main.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./assets/vendor/three.module.min.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- ============================ 首页 ============================ -->
+      <section id="screen-home" class="screen home-screen is-active" aria-labelledby="game-title">
+        <div class="sky-decoration" aria-hidden="true">
+          <div class="sun-disc"></div>
+          <div class="cloud cloud-one"></div>
+          <div class="cloud cloud-two"></div>
+          <div class="cloud cloud-three"></div>
+          <div class="back-hill hill-one"></div>
+          <div class="back-hill hill-two"></div>
+          <div class="floating-cube cube-one"></div>
+          <div class="floating-cube cube-two"></div>
+        </div>
+
+        <div class="home-layout">
+          <div class="home-copy">
+            <div class="eyebrow-badge"><span>✨</span> 3D 像素冒险游戏</div>
+            <h1 id="game-title" class="game-title">
+              <span class="title-line">美味特工队</span>
+              <span class="title-subline">像素方块世界</span>
+            </h1>
+            <p class="home-welcome">
+              欢迎来到软绵绵的方块大世界！<br />
+              挑一位可爱的特工，一起去发现草地、村庄、洞穴、瀑布和会转圈的风车吧。
+            </p>
+
+            <div class="home-actions">
+              <button id="btn-continue" class="pixel-button pixel-button-primary is-hidden" type="button">
+                <span aria-hidden="true">▶</span>
+                <span>继续上次世界</span>
+              </button>
+              <button id="btn-next" class="pixel-button pixel-button-primary" type="button">
+                <span id="btn-next-label">下一步：选特工</span>
+                <span class="button-arrow" aria-hidden="true">→</span>
+              </button>
+              <button id="btn-home-controls" class="pixel-button pixel-button-light" type="button">
+                <span aria-hidden="true">🎮</span>
+                <span>操作说明</span>
+              </button>
+            </div>
+
+            <div class="feature-row" aria-label="游戏特点">
+              <span class="feature-chip">🧱 自由探索</span>
+              <span class="feature-chip">💾 进度会保存</span>
+              <span class="feature-chip">📱 手机可玩</span>
+            </div>
+
+            <div id="home-save-bar" class="home-save-bar">
+              <div class="save-summary">
+                <span id="save-icon" class="save-icon" aria-hidden="true">💾</span>
+                <span class="save-copy">
+                  <strong id="save-title">还没有存档</strong>
+                  <small id="save-detail">开始冒险后会自动保存</small>
+                </span>
+              </div>
+              <div class="save-tools">
+                <button id="btn-export-save" class="mini-pixel-button" type="button" disabled>
+                  ⬆ 导出存档
+                </button>
+                <button id="btn-import-save" class="mini-pixel-button" type="button">
+                  ⬇ 导入存档
+                </button>
+                <input id="import-save-file" type="file" accept=".json,application/json" hidden />
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-art" aria-hidden="true">
+            <div class="hero-cloud hero-cloud-a"></div>
+            <div class="hero-cloud hero-cloud-b"></div>
+            <div class="pixel-sparkle sparkle-a">✦</div>
+            <div class="pixel-sparkle sparkle-b">✦</div>
+            <div class="pixel-sparkle sparkle-c">✦</div>
+
+            <div class="hero-platform">
+              <div class="platform-grass">
+                <span class="platform-flower flower-a">🌼</span>
+                <span class="platform-flower flower-b">🌷</span>
+              </div>
+              <div class="platform-dirt"></div>
+            </div>
+
+            <div class="hero-friend friend-burger">
+              <span class="friend-face">🍔</span>
+              <span class="friend-shadow"></span>
+            </div>
+            <div class="hero-friend friend-fries">
+              <span class="friend-face">🍟</span>
+              <span class="friend-shadow"></span>
+            </div>
+            <div class="hero-friend friend-chicken">
+              <span class="friend-face">🍗</span>
+              <span class="friend-shadow"></span>
+            </div>
+            <div class="hero-friend friend-witch">
+              <span class="friend-face">🧙‍♀️</span>
+              <span class="friend-shadow"></span>
+            </div>
+
+            <div class="hero-tree tree-a">
+              <div class="tree-leaves"></div>
+              <div class="tree-trunk"></div>
+            </div>
+            <div class="hero-tree tree-b">
+              <div class="tree-leaves tree-leaves-pink"></div>
+              <div class="tree-trunk"></div>
+            </div>
+            <div class="hero-sign">欢迎光临！</div>
+          </div>
+        </div>
+
+        <p class="home-footnote">单人游戏 · 不需要注册 · 随时暂停</p>
+      </section>
+
+      <!-- ========================== 角色选择 ========================== -->
+      <section id="screen-select" class="screen select-screen" aria-labelledby="select-title">
+        <div class="select-shell">
+          <button id="btn-select-back" class="back-button" type="button">
+            <span aria-hidden="true">←</span> 返回首页
+          </button>
+
+          <header class="select-header">
+            <div class="eyebrow-badge"><span>2</span> 第二步</div>
+            <h2 id="select-title">选择你的特工</h2>
+            <p>每一位特工都有不同的颜色，点一点卡片就能选中啦。</p>
+          </header>
+
+          <div id="character-grid" class="character-grid" role="list" aria-label="可选特工"></div>
+
+          <div class="select-footer">
+            <div id="selection-preview" class="selection-preview" aria-live="polite">
+              <img id="selection-preview-portrait" class="preview-portrait is-hidden" alt="">
+              <span class="preview-emoji" aria-hidden="true">❓</span>
+              <span>
+                <strong>还没有选特工</strong>
+                <small>先点一张卡片吧</small>
+              </span>
+            </div>
+            <button
+              id="btn-start"
+              class="pixel-button pixel-button-primary start-button is-hidden"
+              type="button"
+            >
+              <span>开始冒险</span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <p class="select-tip">💡 选好后会进入一个会自己长大的方块世界哦。</p>
+        </div>
+      </section>
+
+      <!-- ============================ 加载 ============================ -->
+      <section id="screen-loading" class="screen loading-screen" aria-labelledby="loading-title">
+        <div class="loading-card" role="status" aria-live="polite">
+          <div class="loading-cubes" aria-hidden="true">
+            <span class="loading-cube cube-green"></span>
+            <span class="loading-cube cube-brown"></span>
+            <span class="loading-cube cube-pink"></span>
+            <span class="loading-cube cube-yellow"></span>
+          </div>
+          <div class="eyebrow-badge"><span>3</span> 正在准备</div>
+          <h2 id="loading-title">正在生成方块世界……</h2>
+          <p id="loading-detail">先种下一片软软的草地</p>
+          <div
+            class="loading-track"
+            role="progressbar"
+            aria-label="世界加载进度"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <div id="loading-bar" class="loading-bar"></div>
+          </div>
+          <p id="loading-percent" class="loading-percent">0%</p>
+        </div>
+      </section>
+
+      <!-- ============================ 游戏 ============================ -->
+      <section id="screen-game" class="screen game-screen" aria-label="像素方块世界游戏画面">
+        <canvas id="game-canvas" aria-label="3D 方块世界"></canvas>
+        <div class="game-color-wash" aria-hidden="true"></div>
+        <div id="underwater-filter" class="underwater-filter is-hidden" aria-hidden="true"></div>
+
+        <div id="hud" class="hud">
+          <div class="hud-left">
+            <div class="hud-panel hud-player-panel">
+            <div class="hud-character">
+              <span id="hud-character-emoji" class="hud-character-emoji" aria-hidden="true">🍔</span>
+              <span class="hud-character-copy">
+                <small>当前特工</small>
+                <strong id="hud-character-name">汉堡特工</strong>
+              </span>
+            </div>
+            <div class="hud-stats">
+              <div class="hud-stat"><span>FPS</span><b id="hud-fps">--</b></div>
+              <div class="hud-stat hud-stat-wide">
+                <span>坐标</span><b id="hud-coords">X 0 · Y 0 · Z 0</b>
+              </div>
+              <div class="hud-stat"><span>群系</span><b id="hud-biome">平原</b></div>
+              <div class="hud-stat"><span>已加载区块</span><b id="hud-chunks">0</b></div>
+            </div>
+            </div>
+
+            <aside id="quest-panel" class="quest-panel" aria-label="新手任务" aria-live="polite">
+              <div class="quest-heading">
+                <span id="quest-title">🌱 新手任务</span>
+                <b id="quest-progress">0/3</b>
+              </div>
+              <ul class="quest-list">
+                <li id="quest-walk" class="quest-item">
+                  <span class="quest-check" aria-hidden="true">○</span>
+                  <span class="quest-label">走 10 步</span>
+                  <b id="quest-walk-count">0/10</b>
+                </li>
+                <li id="quest-place" class="quest-item">
+                  <span class="quest-check" aria-hidden="true">○</span>
+                  <span class="quest-label">放置 1 个方块</span>
+                  <b id="quest-place-count">0/1</b>
+                </li>
+                <li id="quest-animal" class="quest-item">
+                  <span class="quest-check" aria-hidden="true">○</span>
+                  <span class="quest-label">靠近一只小动物</span>
+                  <b id="quest-animal-count">0/1</b>
+                </li>
+              </ul>
+            </aside>
+          </div>
+
+          <div class="hud-right">
+            <div class="status-pill"><span aria-hidden="true">🕘</span><b id="hud-time">09:20</b></div>
+            <div class="status-pill"><span id="hud-weather-icon" aria-hidden="true">☀️</span><b id="hud-weather">晴天</b></div>
+            <div id="save-indicator" class="status-pill save-indicator is-faded" role="status" aria-live="polite">
+              <span aria-hidden="true">💾</span><b id="save-indicator-text">已保存</b>
+            </div>
+
+            <div id="mode-indicator" class="status-pill mode-indicator is-hidden" aria-live="polite">
+              <span id="mode-indicator-icon" aria-hidden="true">🕊️</span><b id="mode-indicator-text">飞行中</b>
+            </div>
+
+            <div id="mobile-game-tools" class="mobile-game-tools" aria-label="手机快捷功能">
+              <button id="btn-mobile-map" class="mobile-game-tool" type="button" aria-label="打开世界地图" title="世界地图">🗺️</button>
+              <button id="btn-mobile-fly" class="mobile-game-tool" type="button" aria-label="切换飞行" title="飞行">🕊️</button>
+              <button id="btn-mobile-view" class="mobile-game-tool" type="button" aria-label="切换第一/第三视角" title="切换视角">👁️</button>
+            </div>
+
+            <aside id="minimap-panel" class="minimap-panel is-hidden" aria-label="小地图">
+              <div class="minimap-heading"><span>🗺️ 小地图</span><b>N</b></div>
+              <canvas id="minimap-canvas" width="180" height="180" aria-label="附近的方块地形图"></canvas>
+              <div class="minimap-legend"><span class="legend-dot player-dot"></span>你 <span class="legend-dot animal-dot"></span>小动物</div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="crosshair" aria-hidden="true"><span></span></div>
+
+        <div id="hotbar" class="hotbar" aria-label="快捷栏"></div>
+
+        <div id="mobile-controls" class="mobile-controls" aria-label="手机操作">
+          <div id="joystick-zone" class="joystick-zone" aria-label="移动摇杆">
+            <div id="joystick-base" class="joystick-base">
+              <div id="joystick-knob" class="joystick-knob"></div>
+            </div>
+            <span class="joystick-label" aria-hidden="true">移动</span>
+          </div>
+
+          <div class="touch-actions">
+            <button id="btn-touch-break" class="touch-action touch-break" type="button" aria-label="破坏方块">
+              <span aria-hidden="true">⛏️</span><small>破坏</small>
+            </button>
+            <button id="btn-touch-place" class="touch-action touch-place" type="button" aria-label="放置方块">
+              <span aria-hidden="true">🧱</span><small>放置</small>
+            </button>
+            <button id="btn-touch-jump" class="touch-action touch-jump" type="button" aria-label="跳跃或游泳">
+              <span aria-hidden="true">⬆️</span><small>跳</small>
+            </button>
+          </div>
+        </div>
+
+        <div id="pointer-hint" class="pointer-hint">
+          <span id="pointer-hint-icon" aria-hidden="true">🖱️</span>
+          <span id="pointer-hint-text">点击画面锁定鼠标，移动鼠标看看四周</span>
+        </div>
+
+        <div id="camera-flash" class="camera-flash" aria-hidden="true"></div>
+
+        <div class="game-controls-strip" aria-hidden="true">
+          <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>方向键</kbd> 移动</span>
+          <span><kbd>空格</kbd> 跳跃/游泳</span>
+          <span><kbd>Shift</kbd> 奔跑</span>
+          <span><kbd>左键</kbd> 破坏</span>
+          <span><kbd>右键</kbd> 放置</span>
+          <span><kbd>1-9</kbd>/<kbd>滚轮</kbd> 方块</span>
+          <span><kbd>E</kbd> 背包</span>
+          <span><kbd>T</kbd> 天气 · <kbd>M</kbd> 大图 · <kbd>N</kbd> 小图 · <kbd>R</kbd> 出生点</span>
+          <span><kbd>F</kbd> 飞行 · <kbd>V</kbd> 视角</span>
+          <span><kbd>C</kbd> 拍照 · <kbd>P</kbd> 作品集</span>
+          <span><kbd>Esc</kbd> 暂停</span>
+        </div>
+      </section>
+
+      <!-- ============================ 错误 ============================ -->
+      <section id="screen-error" class="screen error-screen" aria-labelledby="error-title">
+        <div class="error-card">
+          <div class="error-face" aria-hidden="true">🧱</div>
+          <div class="eyebrow-badge eyebrow-badge-warm">哎呀，卡住了</div>
+          <h2 id="error-title">世界暂时没有打开</h2>
+          <p id="error-message">请再试一次吧。</p>
+          <details id="error-details-wrap" class="error-details">
+            <summary>看看技术小提示</summary>
+            <pre id="error-details"></pre>
+          </details>
+          <div class="error-actions">
+            <button id="btn-retry" class="pixel-button pixel-button-primary" type="button">
+              🔁 重新尝试
+            </button>
+            <button id="btn-error-home" class="pixel-button pixel-button-light" type="button">
+              返回首页
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ========================== 新手提示 ========================== -->
+    <div id="overlay-tutorial" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <div class="modal-card tutorial-card">
+        <button id="btn-tutorial-close-x" class="modal-close" type="button" aria-label="关闭新手提示">×</button>
+        <div class="tutorial-hero">
+          <span id="tutorial-character-emoji" class="tutorial-emoji" aria-hidden="true">🍔</span>
+          <div>
+            <div class="eyebrow-badge eyebrow-badge-green">探险开始啦</div>
+            <h2 id="tutorial-title">欢迎你，<span id="tutorial-character-name">汉堡特工</span>！</h2>
+          </div>
+        </div>
+        <p class="tutorial-intro">这里是你的方块小世界。先学会下面几招，就能到处逛啦！左边还有三个新手小任务在等你。</p>
+        <ul class="tutorial-list tutorial-list-desktop">
+          <li>
+            <span class="tutorial-icon">🚶</span>
+            <span><strong>走一走</strong><small>W A S D 或 方向键</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">🖱️</span>
+            <span><strong>看四周</strong><small>点击画面锁定鼠标，再移动鼠标</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">🦘</span>
+            <span><strong>跳一跳</strong><small>按空格跳跃，在水里按住可以游泳</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">🧱</span>
+            <span><strong>玩方块</strong><small>准星对准方块，左键破坏、右键放置</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">🎒</span>
+            <span><strong>打开背包</strong><small>按 E 挑选方块，1–9 或滚轮切换</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">⏸️</span>
+            <span><strong>休息一下</strong><small>按 Esc 暂停游戏；按 H 可以再打开提示</small></span>
+          </li>
+        </ul>
+
+        <ul class="tutorial-list tutorial-list-mobile">
+          <li>
+            <span class="tutorial-icon">🕹️</span>
+            <span><strong>左边摇杆</strong><small>动一动小手指，就能前后左右走</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">👆</span>
+            <span><strong>拖动画面</strong><small>在屏幕空白处拖动手指看四周</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">⛏️</span>
+            <span><strong>右下角按钮</strong><small>破坏、放置、跳跃，水里也能游</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">🎒</span>
+            <span><strong>选方块</strong><small>点下面的快捷栏换方块</small></span>
+          </li>
+          <li>
+            <span class="tutorial-icon">🕊️</span>
+            <span><strong>右上角小按钮</strong><small>地图、飞行和第一/第三视角</small></span>
+          </li>
+        </ul>
+        <button id="btn-tutorial-go" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+          开始探索！
+        </button>
+        <p class="modal-note desktop-tutorial-note">鼠标没有锁定也没关系，按住左键拖动也能转动视角。</p>
+        <p class="modal-note mobile-tutorial-note">摇杆、拖动视角和右下角按钮都能直接用手指操作。</p>
+      </div>
+    </div>
+
+    <!-- ============================ 暂停 ============================ -->
+    <div id="overlay-pause" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+      <div class="modal-card pause-card">
+        <div class="pause-emoji" aria-hidden="true">🍵</div>
+        <div class="eyebrow-badge eyebrow-badge-warm">休息一下</div>
+        <h2 id="pause-title">游戏暂停啦</h2>
+        <p>鼠标已经释放。准备好以后，再一起冒险吧！</p>
+        <div class="pause-actions">
+          <button id="btn-resume" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+            ▶ 继续冒险
+          </button>
+          <button id="btn-pause-controls" class="pixel-button pixel-button-light" type="button">
+            🎮 操作说明
+          </button>
+          <button id="btn-pause-home" class="text-button" type="button">保存并回到首页</button>
+        </div>
+        <p class="modal-note">按 Esc 不会再自动继续，这样小朋友就不会误触啦。</p>
+      </div>
+    </div>
+
+    <!-- ========================== 创造背包 ========================== -->
+    <div id="overlay-inventory" class="overlay inventory-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="inventory-title">
+      <div class="inventory-card">
+        <button id="btn-inventory-close-x" class="modal-close" type="button" aria-label="关闭创造背包">×</button>
+        <div class="inventory-heading">
+          <div class="eyebrow-badge eyebrow-badge-green"><span>🎒</span> 创造模式</div>
+          <h2 id="inventory-title">创造背包</h2>
+          <p>先点上面的方块，再点下面想放的格子；右键点格子可以清空。</p>
+        </div>
+
+        <div id="inventory-carry" class="inventory-carry" aria-live="polite">
+          <span id="inventory-carry-icon" class="inventory-carry-icon" aria-hidden="true">👆</span>
+          <span>
+            <strong id="inventory-carry-title">先挑一个方块吧</strong>
+            <small id="inventory-carry-tip">点一点上面的方块，再点快捷栏格子</small>
+          </span>
+        </div>
+
+        <div id="creative-grid" class="creative-grid" aria-label="创造背包里的方块"></div>
+
+        <div class="inventory-hotbar-heading">
+          <strong>我的快捷栏</strong>
+          <span>右键清空 · 第 9 格是磁铁</span>
+        </div>
+        <div id="inventory-hotbar" class="hotbar hotbar-inventory" aria-label="编辑快捷栏"></div>
+
+        <p class="inventory-help">🖱️ 左键把方块放进格子 · 右键清空格子 · 按 E 或点“完成”回到世界</p>
+        <button id="btn-inventory-done" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+          完成，继续冒险
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================== 作品集 ========================== -->
+    <div id="overlay-gallery" class="overlay gallery-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="gallery-title">
+      <div class="gallery-card">
+        <button id="btn-gallery-close-x" class="modal-close" type="button" aria-label="关闭作品集">×</button>
+        <div class="gallery-heading">
+          <div class="eyebrow-badge"><span>📸</span> 小小摄影师</div>
+          <h2 id="gallery-title">我的作品集</h2>
+          <p>按 C 拍下眼前的方块世界，按 P 可以随时回来看看。</p>
+        </div>
+        <div id="gallery-empty" class="gallery-empty">
+          <div class="gallery-empty-icon" aria-hidden="true">📷</div>
+          <strong>作品集还是空的</strong>
+          <p>回到世界里，按一下 C 就能拍第一张照片啦。</p>
+        </div>
+        <div id="gallery-grid" class="gallery-grid"></div>
+        <p class="gallery-help">照片只保存在这台设备的浏览器里，不会上传到网上。</p>
+        <button id="btn-gallery-close" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+          回去玩
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================== 世界地图 ========================== -->
+    <div id="overlay-worldmap" class="overlay worldmap-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="worldmap-title">
+      <div class="worldmap-card">
+        <button id="btn-worldmap-close-x" class="modal-close" type="button" aria-label="关闭世界地图">×</button>
+        <div class="eyebrow-badge"><span>🧭</span> 探险地图</div>
+        <h2 id="worldmap-title">整个世界的地貌</h2>
+        <p>从高处看看出生点周围的地形、群系和重要地点吧。点右上角 × 或按 M 关闭。</p>
+        <div class="worldmap-stage">
+          <canvas id="worldmap-canvas" width="640" height="640" aria-label="出生点周围的地貌地图"></canvas>
+          <div id="worldmap-loading" class="worldmap-loading" aria-live="polite">正在绘制地图……</div>
+          <div class="worldmap-compass" aria-hidden="true">N</div>
+        </div>
+
+        <div class="worldmap-legend" aria-label="地图图例">
+          <div class="worldmap-legend-group">
+            <strong>地貌</strong>
+            <span><i class="map-swatch" style="--swatch:#70c95b"></i>平原</span>
+            <span><i class="map-swatch" style="--swatch:#e9a3c1"></i>樱花林</span>
+            <span><i class="map-swatch" style="--swatch:#3f8d45"></i>丛林</span>
+            <span><i class="map-swatch" style="--swatch:#e8cb72"></i>沙漠</span>
+            <span><i class="map-swatch" style="--swatch:#f3fbff"></i>雪地 / 雪顶</span>
+            <span><i class="map-swatch" style="--swatch:#47b4e2"></i>海洋 / 河流</span>
+            <span><i class="map-swatch" style="--swatch:#9d978c"></i>高山</span>
+          </div>
+          <div class="worldmap-legend-group worldmap-marker-legend">
+            <strong>地点</strong>
+            <span><i class="map-pin" style="--pin:#ffd85e"></i>村庄</span>
+            <span><i class="map-pin" style="--pin:#f7f2dd"></i>洞穴入口</span>
+            <span><i class="map-pin" style="--pin:#7fe7ff"></i>瀑布</span>
+            <span><i class="map-pin" style="--pin:#8fffe3"></i>美味科技城</span>
+            <span><i class="map-pin" style="--pin:#c79a66"></i>废弃矿井</span>
+            <span><i class="map-triangle" style="--pin:#e8eef3"></i>雪山</span>
+            <span><i class="map-pin" style="--pin:#ffffff"></i>风车</span>
+          </div>
+        </div>
+        <button id="btn-worldmap-close" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+          继续探险
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================== 操作说明 ========================== -->
+    <div id="overlay-controls" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="controls-title">
+      <div class="modal-card controls-card">
+        <button id="btn-controls-close-x" class="modal-close" type="button" aria-label="关闭操作说明">×</button>
+        <div class="eyebrow-badge"><span>🎮</span> 操作说明</div>
+        <h2 id="controls-title">怎么玩呢？</h2>
+        <div class="controls-grid">
+          <div class="control-item">
+            <div class="key-cluster"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+            <span><strong>走路</strong><small>也可以用方向键 ↑ ↓ ← →</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>鼠标</kbd></div>
+            <span><strong>转动视角</strong><small>点击画面锁定鼠标</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd class="key-wide">空格</kbd></div>
+            <span><strong>跳跃 / 游泳</strong><small>跳过土坡；在水里按住上浮</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd class="key-wide">Shift</kbd></div>
+            <span><strong>奔跑</strong><small>按住不放跑得更快</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>Esc</kbd></div>
+            <span><strong>暂停</strong><small>释放鼠标并暂停世界</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>左键</kbd><kbd>右键</kbd></div>
+            <span><strong>破坏 / 放置</strong><small>准星对准方块后操作</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>1-9</kbd><kbd>滚轮</kbd></div>
+            <span><strong>选择方块</strong><small>切换下面的快捷栏</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>E</kbd></div>
+            <span><strong>创造背包</strong><small>挑选方块，放进快捷栏</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>T</kbd></div>
+            <span><strong>切换天气</strong><small>晴天、下雨或下雪</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>M</kbd></div>
+            <span><strong>世界地图</strong><small>看清整片地貌、村庄、洞穴和瀑布</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>N</kbd></div>
+            <span><strong>小地图</strong><small>看看身边的地形和小动物</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>F</kbd></div>
+            <span><strong>自由飞行</strong><small>空格上升，Shift 下降，再按 F 落地</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>V</kbd></div>
+            <span><strong>第一 / 第三视角</strong><small>看一看自己的小特工</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>R</kbd></div>
+            <span><strong>回到出生点</strong><small>迷路时用一下</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>C</kbd></div>
+            <span><strong>拍照</strong><small>把当前画面加入作品集</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>P</kbd></div>
+            <span><strong>作品集</strong><small>浏览保存下来的照片</small></span>
+          </div>
+          <div class="control-item">
+            <div class="key-cluster"><kbd>H</kbd></div>
+            <span><strong>新手提示</strong><small>忘记操作时再打开</small></span>
+          </div>
+        </div>
+        <p class="controls-note">自动保存已开启；照片会保存在你自己的浏览器里。</p>
+        <button id="btn-controls-close" class="pixel-button pixel-button-primary pixel-button-wide" type="button">
+          知道啦
+        </button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast is-hidden" role="status" aria-live="polite"></div>
+
+    <!-- 如果模块脚本完全没有启动，给小朋友一个能看懂的提示。 -->
+    <div id="boot-fallback" class="boot-fallback" hidden>
+      <div class="boot-fallback-card">
+        <div class="error-face" aria-hidden="true">🔌</div>
+        <h2>游戏没有加载成功</h2>
+        <p>可能是网络断开，或者浏览器太旧了。请刷新页面再试一次。</p>
+        <button class="pixel-button pixel-button-primary" type="button" onclick="location.reload()">
+          🔁 刷新页面
+        </button>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="noscript-note">这个游戏需要 JavaScript。请在浏览器设置里打开 JavaScript 后再来玩。</div>
+    </noscript>
+
+    <script>
+      // 给主模块留一点点启动时间；超过 15 秒还没有启动就显示中文提示。
+      window.__gameBooted = false;
+      window.setTimeout(function () {
+        if (!window.__gameBooted) {
+          var fallback = document.getElementById('boot-fallback');
+          if (fallback) fallback.hidden = false;
+        }
+      }, 15000);
+    </script>
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
