@@ -288,12 +288,15 @@ export class InteractionController {
           ? (z + 1 - origin.z) / direction.z
           : (origin.z - z) / -direction.z;
 
+    // 眼睛在水里时，起点所在的“水方块”没有有效表面法线。
+    // 这时跳过水体，让准星继续找到水下的地面或岩壁，才能把方块放到水里。
+    const ignoreWater = this.world.getBlock(x, y, z) === BLOCK_IDS.WATER;
     let normal = [0, 0, 0];
     let distance = 0;
 
     for (let i = 0; i < 96 && distance <= REACH; i += 1) {
       const blockId = this.world.getBlock(x, y, z);
-      if (blockId !== BLOCK_IDS.AIR) {
+      if (blockId !== BLOCK_IDS.AIR && !(ignoreWater && blockId === BLOCK_IDS.WATER)) {
         return { x, y, z, id: blockId, normal: [...normal], distance };
       }
 
