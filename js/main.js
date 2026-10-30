@@ -8,7 +8,7 @@
 import { GameUI } from './ui.js';
 import { DEFAULT_CHARACTER_ID, getCharacter } from './characters.js';
 import { GAME_CONFIG } from './config.js';
-import { getBlock, isSolidBlock } from './blocks.js';
+import { BLOCK_IDS, getBlock, isFoodBlock, isSolidBlock } from './blocks.js';
 import { Inventory, MAGNET_SLOT_INDEX } from './inventory.js';
 import { GameAudio } from './audio.js';
 import { SaveManager } from './save.js';
@@ -35,6 +35,7 @@ const state = {
   portalDwell: 0,
   portalCooldown: 0,
   portalHintShown: false,
+  skyFoodQuest: { burger: false, fries: false, popcorn: false },
   themeResumeOnClose: false,
 };
 
@@ -234,7 +235,12 @@ window.__MEIWEI_DEBUG__ = {
             geodes: (state.game.world.geodes || []).slice(0, 12),
             ruinedPortal: state.game.overworldWorld?.ruinedPortal || state.game.world.ruinedPortal || null,
             skyPortal: state.game.overworldWorld?.skyPortal || state.game.world.skyPortal || null,
-            sky: state.game.sky ? { spawn: { ...state.game.sky.spawn }, returnPortal: { ...state.game.sky.returnPortal } } : null,
+            sky: state.game.sky ? {
+              spawn: { ...state.game.sky.spawn },
+              returnPortal: { ...state.game.sky.returnPortal },
+              foodSpots: { ...state.game.sky.foodSpots },
+            } : null,
+            skyFoodQuest: { ...state.skyFoodQuest },
             nether: state.game.nether
               ? {
                   mobs: state.game.nether.mobs.length,
@@ -552,6 +558,8 @@ async function startAdventure(character, options = {}) {
       onBlockPlaced: () => {
         activeQuestInstance?.markBlockPlaced();
       },
+      onFoodCollected: (blockId) => collectSkyFood(blockId),
+      onEatFood: (blockId) => eatSkyFood(blockId),
     });
 
     minimap = new Minimap({
@@ -751,6 +759,7 @@ function tick(now) {
       if (game.player.position.y < -8) {
         game.player.teleport(game.sky.spawn.x, game.sky.spawn.y, game.sky.spawn.z);
       }
+      checkSkyFoodPickups(game);
       ui.setUnderwater(false);
     } else {
       game.environment.update(delta, game.camera);
@@ -792,7 +801,7 @@ function updatePortalTransition(game, delta) {
   }
   const player = game.player;
   let portal = null;
-  let range = 1.5;
+  let range = 2.5;
   if (game.dimension === 'overworld') {
     const targets = [];
     if (game.world.ruinedPortal) {
@@ -860,7 +869,7 @@ function updatePortalTransition(game, delta) {
     ui.toastMessage('🌀 传送门在发光，走进紫光里就能穿过去。', 'info', 2600);
   }
   state.portalDwell += delta;
-  if (state.portalDwell >= 0.65) {
+  if (state.portalDwell >= 0.18) {
     state.portalDwell = 0;
     if (game.dimension === 'overworld') {
       if (portal.kind === 'sky') enterSkyCity(game);
@@ -900,7 +909,6 @@ function enterNether(game) {
   game.dimension = 'nether';
   game.player.world = game.nether;
   game.interaction.world = game.nether;
-  game.player.setSpawn(game.nether.spawn);
   game.player.setFlying(false);
   game.player.setCameraMode('first');
   game.player.teleport(game.nether.spawn.x, game.nether.spawn.y, game.nether.spawn.z);
@@ -909,7 +917,7 @@ function enterNether(game) {
   document.body.dataset.dimension = 'nether';
   ui.setMinimapVisible(false);
   ui.toastMessage('🔥 穿过传送门，来到了下界。走回紫色传送门可以回家。', 'good', 4800);
-  state.portalCooldown = 2.5;
+  state.portalCooldown = 1.2;
   state.portalHintShown = false;
   updateHUD(game);
 }
@@ -970,7 +978,6 @@ function enterSkyCity(game) {
   game.dimension = 'sky';
   game.player.world = game.sky;
   game.interaction.world = game.sky;
-  game.player.setSpawn(game.sky.spawn);
   game.player.setFlying(false);
   game.player.setCameraMode('first');
   game.player.teleport(game.sky.spawn.x, game.sky.spawn.y, game.sky.spawn.z);
@@ -1275,6 +1282,22 @@ function handleGlobalKeyDown(event) {
   if (isTypingTarget(event.target)) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
 
+  if (event.code === 'Enter' && state.game?.dimension === 'overworld') {
+    let selected = state.game.inventory.getSelectedSlot();
+    if (!isFoodBlock(selected)) {
+      const index = state.game.inventory.slots.findIndex((slot) => isFoodBlock(slot));
+      if (index >= 0) {
+        state.game.inventory.select(index);
+        selected = state.game.inventory.getSlot(index);
+      }
+    }
+    if (isFoodBlock(selected)) {
+      eatSkyFood(selected);
+      event.preventDefault();
+      return;
+    }
+  }
+
   if (event.code === 'Escape') {
     if (ui.isShareOpen()) {
       ui.hideShare();
@@ -1433,11 +1456,26 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyR') {
     if (event.repeat) return;
     if (state.paused) return;
-    state.game.player.respawn();
-    state.game.interaction.hideTarget();
+    const game = state.game;
+    if (game.dimension === 'nether') {
+      exitNether(game);
+      game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
+      game.player.yaw = 0;
+      state.portalCooldown = 3;
+      ui.toastMessage('回到主世界出生点啦！', 'good', 2200);
+    } else if (game.dimension === 'sky') {
+      exitSkyCity(game);
+      game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
+      game.player.yaw = 0;
+      state.portalCooldown = 3;
+      ui.toastMessage('回到主世界出生点啦！', 'good', 2200);
+    } else {
+      game.player.respawn();
+      ui.toastMessage('回到出生点啦！', 'good', 1800);
+    }
+    game.interaction.hideTarget();
     updateModeIndicator();
-    ui.toastMessage('回到出生点啦！', 'good', 1800);
-    updateHUD(state.game);
+    updateHUD(game);
     event.preventDefault();
     return;
   }
@@ -1803,6 +1841,78 @@ function capturePhoto() {
     ui.toastMessage('拍照失败，再试一次吧。', 'warn', 2800);
     return false;
   }
+}
+
+
+const SKY_FOOD_INFO = {
+  [BLOCK_IDS.BURGER]: { key: 'burger', name: '汉堡方块', emoji: '🍔', id: BLOCK_IDS.BURGER },
+  [BLOCK_IDS.FRIES]: { key: 'fries', name: '薯条方块', emoji: '🍟', id: BLOCK_IDS.FRIES },
+  [BLOCK_IDS.POPCORN]: { key: 'popcorn', name: '鸡米花方块', emoji: '🍗', id: BLOCK_IDS.POPCORN },
+};
+
+function collectSkyFood(blockId) {
+  const info = SKY_FOOD_INFO[blockId];
+  if (!info) return;
+  const game = state.game;
+  if (!game) return;
+  const inventory = game.inventory;
+  let slot = -1;
+  for (let i = 0; i < inventory.slots.length; i += 1) {
+    if (i === 8) continue;
+    if (inventory.slots[i] === null) { slot = i; break; }
+  }
+  if (slot === -1) {
+    // 快捷栏是方块“类型”而不是数量。满格时选择第一个
+    // 不是隐藏食物、也不是磁铁的格子替换，保证三种美食能同时留下。
+    const foodIds = Object.values(SKY_FOOD_INFO).map((entry) => entry.id).filter(Boolean);
+    const allFoodIds = [BLOCK_IDS.BURGER, BLOCK_IDS.FRIES, BLOCK_IDS.POPCORN];
+    for (let i = 0; i < inventory.slots.length; i += 1) {
+      if (i === 8) continue;
+      if (allFoodIds.includes(inventory.slots[i])) continue;
+      slot = i;
+      break;
+    }
+    if (slot === -1) slot = 0;
+  }
+  inventory.setSlot(slot, blockId);
+  state.skyFoodQuest[info.key] = true;
+  const found = Object.values(state.skyFoodQuest).filter(Boolean).length;
+  if (found >= 3) {
+    ui.toastMessage('🎉 隐藏任务完成！汉堡、薯条、鸡米花都找到了。回到主世界后选中它们，右键就能吃！', 'good', 6200);
+  } else {
+    ui.toastMessage(`${info.emoji} 找到隐藏的${info.name}！（${found}/3）带回主世界后右键或按 Enter 食用。`, 'good', 4200);
+  }
+  updateHUD(game);
+}
+
+function checkSkyFoodPickups(game) {
+  if (!game || game.dimension !== 'sky' || !game.sky?.foodSpots) return;
+  for (const [key, spot] of Object.entries(game.sky.foodSpots)) {
+    const id = game.world.getBlock(spot.x, spot.y, spot.z);
+    const foodId = { burger: BLOCK_IDS.BURGER, fries: BLOCK_IDS.FRIES, popcorn: BLOCK_IDS.POPCORN }[key];
+    if (id !== foodId) continue;
+    if (Math.hypot(game.player.position.x - spot.x, game.player.position.z - spot.z) > 3.5) continue;
+    game.world.setBlock(spot.x, spot.y, spot.z, BLOCK_IDS.AIR);
+    collectSkyFood(foodId);
+  }
+}
+
+function eatSkyFood(blockId) {
+  const game = state.game;
+  if (!game) return false;
+  if (game.dimension !== 'overworld') {
+    ui.toastMessage('这是云上城的隐藏美食，带回主世界再吃吧。', 'info', 2600);
+    return false;
+  }
+  const info = SKY_FOOD_INFO[blockId];
+  if (!info) return false;
+  const index = game.inventory.selectedIndex;
+  if (game.inventory.getSlot(index) !== blockId) return false;
+  game.inventory.clearSlot(index);
+  ui.toastMessage(`${info.emoji} ${info.name}真好吃！能量满满！`, 'good', 2800);
+  game.audio?.playPlace?.();
+  updateHUD(game);
+  return true;
 }
 
 function openWorldMap() {

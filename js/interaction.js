@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { BLOCK_IDS, getBlock, getBlockColor, isUnbreakableBlock } from './blocks.js';
+import { BLOCK_IDS, getBlock, getBlockColor, isFoodBlock, isUnbreakableBlock } from './blocks.js';
 import { MAGNET_SLOT } from './inventory.js';
 
 const REACH = 6;
@@ -24,6 +24,8 @@ export class InteractionController {
     ui,
     isBlocked,
     onBlockPlaced = () => {},
+    onFoodCollected = () => {},
+    onEatFood = () => false,
   }) {
     this.scene = scene;
     this.camera = camera;
@@ -34,6 +36,8 @@ export class InteractionController {
     this.ui = ui;
     this.isBlocked = isBlocked || (() => false);
     this.onBlockPlaced = onBlockPlaced || (() => {});
+    this.onFoodCollected = onFoodCollected || (() => {});
+    this.onEatFood = onEatFood || (() => false);
 
     this.target = null;
     this._lastActionTime = -Infinity;
@@ -163,6 +167,13 @@ export class InteractionController {
       magnet,
     );
     if (magnet) this.audio?.playMagnet();
+    if (isFoodBlock(target.id)) {
+      try {
+        this.onFoodCollected(target.id);
+      } catch (error) {
+        console.warn('[美味特工队] 收集隐藏食物出错：', error);
+      }
+    }
     this.outline.visible = false;
     return true;
   }
@@ -178,6 +189,10 @@ export class InteractionController {
       this.audio?.playError();
       this.ui?.toastMessage('第 9 格是磁铁，只收集方块，不放置方块。', 'info', 2200);
       return false;
+    }
+    if (isFoodBlock(selected)) {
+      const eaten = this.onEatFood(selected);
+      return eaten !== false;
     }
 
     const placement = this.getPlacementPosition();

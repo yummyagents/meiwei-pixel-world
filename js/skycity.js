@@ -1,543 +1,515 @@
 /**
- * 云上科技城：浮空岛、玻璃穹顶、霓虹桥和瀑布。
- * 这里用轻量场景几何 + 平台碰撞，不生成整张体素地图。
+ * 云上科技美食城：真正的体素建筑。
+ * 所有岛、桥、穹顶、塔楼和摊位都由方块网格生成，和主世界同一套像素贴图。
  */
 
 import * as THREE from 'three';
-import { BLOCK_IDS } from './blocks.js';
+import {
+  ATLAS_COLS,
+  BLOCK_IDS,
+  TILE_SIZE,
+  createBlockAtlasCanvas,
+  getBlock,
+  getBlockColor,
+} from './blocks.js';
 
-const TOP = 10;
+const W = 88;
+const H = 32;
+const D = 88;
+const TOP = 12;
+const CX = 44;
+const CZ = 44;
+const FOOD_SPOTS = {
+  burger: { x: 36, y: 14, z: 44 },
+  fries: { x: 52, y: 14, z: 72 },
+  popcorn: { x: 20, y: 15, z: 44 },
+};
+const FACE_DEFS = [
+  { n: [1, 0, 0], v: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], shade: 0.82 },
+  { n: [-1, 0, 0], v: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], shade: 0.82 },
+  { n: [0, 1, 0], v: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], shade: 1 },
+  { n: [0, -1, 0], v: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], shade: 0.58 },
+  { n: [0, 0, 1], v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], shade: 0.88 },
+  { n: [0, 0, -1], v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], shade: 0.88 },
+];
 
 export class SkyCityRealm {
   constructor({ scene }) {
     this.scene = scene;
+    this.width = W;
+    this.depth = D;
+    this.height = H;
+    this.data = new Uint8Array(W * H * D);
     this.group = new THREE.Group();
-    this.group.name = 'sky-city';
+    this.group.name = 'sky-city-voxel';
     this.group.visible = false;
     this.scene.add(this.group);
     this.time = 0;
-    this.clouds = [];
-    this.rings = [];
-    this.waterfalls = [];
-    this.spawn = { x: 0, y: TOP + 1.02, z: 24 };
-    this.returnPortal = { x: 0, y: TOP + 1.02, z: -7 };
-    this.biome = { emoji: '☁️', name: '云上科技城' };
-    this.platforms = [
-      { x: 0, z: 0, r: 13, top: TOP, main: true },
-      { x: -28, z: 0, r: 6.5, top: 11 },
-      { x: 28, z: 0, r: 7, top: 12 },
-      { x: 0, z: -28, r: 6, top: 12 },
-      { x: 0, z: 28, r: 6.5, top: 11 },
-    ];
-    this.bridges = [
-      { axis: 'x', from: -28, to: 0, z: 0, top: TOP },
-      { axis: 'x', from: 0, to: 28, z: 0, top: TOP },
-      { axis: 'z', from: -28, to: 0, x: 0, top: TOP },
-      { axis: 'z', from: 0, to: 28, x: 0, top: TOP },
-    ];
-    this._materials = {
-      grass: new THREE.MeshStandardMaterial({ color: '#69c96f', roughness: 0.9 }),
-      grassSide: new THREE.MeshStandardMaterial({ color: '#5a9c56', roughness: 0.95 }),
-      stone: new THREE.MeshStandardMaterial({ color: '#6a7181', roughness: 0.85 }),
-      darkStone: new THREE.MeshStandardMaterial({ color: '#3b4252', roughness: 0.8 }),
-      dirt: new THREE.MeshStandardMaterial({ color: '#7b5b47', roughness: 1 }),
-      white: new THREE.MeshStandardMaterial({ color: '#eaf7ff', roughness: 0.45, metalness: 0.15 }),
-      silver: new THREE.MeshStandardMaterial({ color: '#aebccb', roughness: 0.35, metalness: 0.65 }),
-      glass: new THREE.MeshPhysicalMaterial({
-        color: '#9fe9ff',
-        transparent: true,
-        opacity: 0.18,
-        roughness: 0.08,
-        metalness: 0.1,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-      cyan: new THREE.MeshStandardMaterial({ color: '#63f6ff', emissive: '#13b5d1', emissiveIntensity: 2.2 }),
-      magenta: new THREE.MeshStandardMaterial({ color: '#ff8be8', emissive: '#c324a7', emissiveIntensity: 2 }),
-      gold: new THREE.MeshStandardMaterial({ color: '#ffd76e', emissive: '#b87413', emissiveIntensity: 0.8 }),
-      water: new THREE.MeshStandardMaterial({
-        color: '#79dcff',
-        transparent: true,
-        opacity: 0.65,
-        roughness: 0.15,
-        metalness: 0.05,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-      leaf: new THREE.MeshStandardMaterial({ color: '#6fbf65', roughness: 0.85 }),
-      trunk: new THREE.MeshStandardMaterial({ color: '#6c4a35', roughness: 0.9 }),
-      cloud: new THREE.MeshStandardMaterial({
-        color: '#ffffff',
-        transparent: true,
-        opacity: 0.72,
-        roughness: 1,
-        depthWrite: false,
-      }),
-      floor: new THREE.MeshStandardMaterial({ color: '#22394d', roughness: 0.38, metalness: 0.4 }),
-      wood: new THREE.MeshStandardMaterial({ color: '#b56d3e', roughness: 0.7 }),
-      orange: new THREE.MeshStandardMaterial({ color: '#ffb347', emissive: '#a84e12', emissiveIntensity: 0.8 }),
-      screen: new THREE.MeshBasicMaterial({ color: '#66e8ff', transparent: true, opacity: 0.95 }),
-      beam: new THREE.MeshBasicMaterial({
-        color: '#73f2ff', transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-      }),
-      beamCore: new THREE.MeshBasicMaterial({
-        color: '#e8ffff', transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false,
-      }),
-    };
-    this._buildSky();
+    this.biome = { emoji: '☁️', name: '云上科技美食城' };
+    this.spawn = { x: 44.5, y: TOP + 1.02, z: 82.5 };
+    this.returnPortal = { x: CX + 0.5, y: TOP + 1.02, z: 34.5 };
+    this.foodSpots = FOOD_SPOTS;
+    this._generate();
+    this._buildAtlas();
+    this._buildMesh();
+    this._buildPortal();
     this._buildLights();
-    this._buildIslands();
-    this._buildCity();
-    this._buildInterior();
-    this._buildRingIsland();
-    this._buildClouds();
-    this._buildReturnGate();
+    this._buildBackground();
+    this._buildSkyEffects();
   }
 
-  _add(mesh) { this.group.add(mesh); return mesh; }
-
-  _buildSky() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    const g = ctx.createLinearGradient(0, 0, 0, 512);
-    g.addColorStop(0, '#153a6b');
-    g.addColorStop(0.36, '#4f9bd2');
-    g.addColorStop(0.62, '#ffc17b');
-    g.addColorStop(0.78, '#ffd9a8');
-    g.addColorStop(1, '#7ab8e6');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 1024, 512);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    for (let i = 0; i < 46; i += 1) {
-      const x = (i * 137) % 1024;
-      const y = 55 + (i * 71) % 230;
-      ctx.fillRect(x, y, 4 + (i % 4) * 3, 1);
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    this.background = texture;
+  _index(x, y, z) { return x + z * W + y * W * D; }
+  _getRaw(x, y, z) {
+    if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= D) return 0;
+    return this.data[this._index(x, y, z)];
   }
-
-  _buildLights() {
-    const ambient = new THREE.AmbientLight('#dff6ff', 1.25);
-    const hemi = new THREE.HemisphereLight('#eafaff', '#8bbad2', 1.1);
-    const sun = new THREE.DirectionalLight('#fff1cc', 2.1);
-    sun.position.set(42, 58, 24);
-    this.group.add(ambient, hemi, sun);
-    const sunBall = new THREE.Mesh(
-      new THREE.SphereGeometry(4.2, 24, 16),
-      new THREE.MeshBasicMaterial({ color: '#fff6d2' }),
-    );
-    sunBall.position.set(55, 56, -45);
-    this.group.add(sunBall);
-    const glow = new THREE.PointLight('#61f3ff', 2.4, 34, 2);
-    glow.position.set(0, 18, 0);
-    this.group.add(glow);
+  _set(x, y, z, id) {
+    if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= D) return;
+    this.data[this._index(x, y, z)] = id;
   }
-
-  _box(w, h, d, material, x, y, z, group = this.group) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-    mesh.position.set(x, y, z);
-    group.add(mesh);
-    return mesh;
-  }
-
-  _cylinder(rt, rb, h, material, x, y, z, segments = 28, group = this.group) {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, segments), material);
-    mesh.position.set(x, y, z);
-    group.add(mesh);
-    return mesh;
-  }
-
-  _buildIslands() {
-    const m = this._materials;
-    for (const p of this.platforms) {
-      const top = p.top;
-      this._cylinder(p.r, p.r * 0.96, 1.1, m.grass, p.x, top - 0.55, p.z, 32);
-      this._cylinder(p.r * 0.95, p.r * 0.9, 1.4, m.grassSide, p.x, top - 1.7, p.z, 32);
-      this._cylinder(p.r * 0.88, p.r * 0.32, 4.8, m.stone, p.x, top - 4.6, p.z, 24);
-      // 底部悬挂的碎岩，让浮空岛更自然。
-      for (let i = 0; i < 7; i += 1) {
-        const angle = (i / 7) * Math.PI * 2 + p.x;
-        const rr = p.r * (0.2 + (i % 3) * 0.1);
-        this._box(0.8 + (i % 2) * 0.5, 1.2 + (i % 3) * 0.5, 0.8, m.darkStone,
-          p.x + Math.cos(angle) * p.r * 0.55, top - 7.2 - (i % 3) * 0.7, p.z + Math.sin(angle) * p.r * 0.55);
-      }
-      // 岛上小树。
-      if (!p.main && p.r > 5.5) {
-        this._cylinder(0.22, 0.32, 3.2, m.trunk, p.x + 1.7, top + 1.6, p.z - 1.2, 8);
-        this._box(2.5, 2, 2.5, m.leaf, p.x + 1.7, top + 3.2, p.z - 1.2);
-        this._box(1.3, 1.2, 1.3, m.leaf, p.x + 0.5, top + 3.8, p.z - 0.8);
-      }
-      // 小岛边缘的发光环。
-      if (!p.main) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(p.r * 0.82, 0.12, 8, 40), m.cyan);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.set(p.x, top + 0.12, p.z);
-        this._add(ring);
-        this.rings.push(ring);
-      }
-    }
-    // 桥面。
-    for (const b of this.bridges) {
-      if (b.axis === 'x') {
-        const len = Math.abs(b.to - b.from);
-        this._box(len, 0.4, 2.8, m.white, (b.from + b.to) / 2, b.top - 0.2, b.z);
-        this._box(len, 0.18, 0.12, m.cyan, (b.from + b.to) / 2, b.top + 0.06, b.z + 1.0);
-        this._box(len, 0.18, 0.12, m.magenta, (b.from + b.to) / 2, b.top + 0.06, b.z - 1.0);
-        for (let x = Math.min(b.from, b.to) + 2; x < Math.max(b.from, b.to); x += 4) {
-          this._box(0.14, 1.1, 0.14, m.silver, x, b.top + 0.5, b.z);
-        }
-      } else {
-        const len = Math.abs(b.to - b.from);
-        this._box(2.8, 0.4, len, m.white, b.x, b.top - 0.2, (b.from + b.to) / 2);
-        this._box(0.12, 0.18, len, m.cyan, b.x + 1.0, b.top + 0.06, (b.from + b.to) / 2);
-        this._box(0.12, 0.18, len, m.magenta, b.x - 1.0, b.top + 0.06, (b.from + b.to) / 2);
-      }
-    }
-  }
-
-  _buildCity() {
-    const m = this._materials;
-    // 玻璃穹顶。
-    const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(11.5, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2),
-      m.glass,
-    );
-    dome.position.set(0, TOP, 0);
-    this._add(dome);
-    const wire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(new THREE.SphereGeometry(11.52, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
-      new THREE.LineBasicMaterial({ color: '#a8f6ff', transparent: true, opacity: 0.35 }),
-    );
-    wire.position.set(0, TOP, 0);
-    this._add(wire);
-
-    // 穹顶内的中央能源塔。
-    this._cylinder(2.4, 3.4, 2.2, m.silver, 0, TOP + 1.1, 0, 24);
-    // 穹顶内部只保留一根细的能量塔芯，让中央光柱和全息屏成为主角。
-    this._cylinder(0.32, 0.55, 16, m.silver, 0, TOP + 10, 0, 16);
-    for (let y = TOP + 3; y <= TOP + 14; y += 3) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.1, 8, 32), y % 2 === 0 ? m.cyan : m.magenta);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = y;
-      this._add(ring);
-      this.rings.push(ring);
-    }
-    this._cylinder(0.25, 0.8, 7, m.silver, 0, TOP + 20, 0, 12);
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), m.cyan);
-    orb.position.y = TOP + 23.7;
-    this._add(orb);
-    const towerLight = new THREE.PointLight('#7dfcff', 3, 28, 2);
-    towerLight.position.set(0, TOP + 13, 0);
-    this._add(towerLight);
-
-    // 穹顶外的霓虹环。
-    for (const [y, radius, material] of [[TOP + 13, 14, m.cyan], [TOP + 17, 10, m.magenta]]) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.18, 10, 80), material);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = y;
-      this._add(ring);
-      this.rings.push(ring);
-    }
-
-    // 中央广场的全息光环。
-    const floorRing = new THREE.Mesh(new THREE.TorusGeometry(7.2, 0.12, 8, 64), m.cyan);
-    floorRing.rotation.x = Math.PI / 2;
-    floorRing.position.y = TOP + 0.2;
-    this._add(floorRing);
-    for (let i = 0; i < 8; i += 1) {
-      const angle = (i / 8) * Math.PI * 2;
-      this._box(0.35, 0.12, 3.6, m.cyan, Math.cos(angle) * 5.2, TOP + 0.18, Math.sin(angle) * 5.2).rotation.y = -angle;
-    }
-
-    // 玻璃温室管。
-    for (const [x, z] of [[-7, 5], [7, 5], [-7, -5], [7, -5]]) {
-      this._cylinder(1.2, 1.2, 7, m.glass, x, TOP + 3.5, z, 16);
-      this._cylinder(0.9, 0.9, 6.2, m.grass, x, TOP + 3.2, z, 12);
-      this._cylinder(1.35, 1.35, 0.25, m.cyan, x, TOP + 7.1, z, 16);
-    }
-
-    // 瀑布：从东、南两个浮空岛边缘落下。
-    for (const [x, z, w] of [[21, 0, 3.4], [0, 22, 4.2], [-21, 0, 2.8]]) {
-      const fall = new THREE.Mesh(new THREE.PlaneGeometry(w, 24), m.water.clone());
-      fall.position.set(x, TOP - 10, z + 1.2);
-      fall.rotation.y = z === 0 ? Math.PI / 2 : 0;
-      this._add(fall);
-      this.waterfalls.push(fall);
-    }
-
-    // 小瀑布下的水花光点。
-    const pointsGeo = new THREE.BufferGeometry();
-    const pts = [];
-    for (let i = 0; i < 100; i += 1) {
-      pts.push((Math.random() - 0.5) * 45, 4 + Math.random() * 22, (Math.random() - 0.5) * 45);
-    }
-    pointsGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    const points = new THREE.Points(pointsGeo, new THREE.PointsMaterial({
-      color: '#8ff5ff', size: 0.18, transparent: true, opacity: 0.75, depthWrite: false,
-    }));
-    this._add(points);
-  }
-
-  _buildInterior() {
-    const m = this._materials;
-    // 科技地板覆盖中央草坪。
-    this._cylinder(10.6, 10.6, 0.28, m.floor, 0, TOP + 0.06, 0, 48);
-    for (const r of [4.2, 7.4, 10.1]) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.055, 6, 64), m.cyan);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = TOP + 0.23;
-      this._add(ring);
-    }
-    for (let i = 0; i < 12; i += 1) {
-      const angle = (i / 12) * Math.PI * 2;
-      this._box(0.08, 0.01, 6.2, m.cyan, Math.cos(angle) * 6.4, TOP + 0.23, Math.sin(angle) * 6.4).rotation.y = -angle;
-    }
-    // 穹顶结构肋。
-    for (let i = 0; i < 6; i += 1) {
-      const arc = new THREE.Mesh(
-        new THREE.TorusGeometry(11.5, 0.055, 5, 64, Math.PI),
-        new THREE.MeshBasicMaterial({ color: '#d8fbff', transparent: true, opacity: 0.28 }),
-      );
-      arc.rotation.z = (i / 6) * Math.PI;
-      arc.position.y = TOP;
-      this._add(arc);
-    }
-    // 中央蓝色能量柱：外光柱 + 白色核心。
-    this._cylinder(1.3, 1.6, 18, m.beam, 0, TOP + 9, 0, 24);
-    this._cylinder(0.38, 0.52, 18, m.beamCore, 0, TOP + 9, 0, 16);
-    const beamLight = new THREE.PointLight('#6df5ff', 3.4, 30, 2);
-    beamLight.position.set(0, TOP + 7, 0);
-    this._add(beamLight);
-    const beamParticles = [];
-    for (let i = 0; i < 90; i += 1) {
-      beamParticles.push((Math.random() - 0.5) * 3.8, TOP + Math.random() * 18, (Math.random() - 0.5) * 3.8);
-    }
-    const beamGeo = new THREE.BufferGeometry();
-    beamGeo.setAttribute('position', new THREE.Float32BufferAttribute(beamParticles, 3));
-    const beamPoints = new THREE.Points(beamGeo, new THREE.PointsMaterial({
-      color: '#c9ffff', size: 0.2, transparent: true, opacity: 0.85, depthWrite: false,
-    }));
-    this._add(beamPoints);
-    this.beamPoints = beamPoints;
-
-    // 全息地图屏。
-    const screenCanvas = document.createElement('canvas');
-    screenCanvas.width = 512;
-    screenCanvas.height = 256;
-    const ctx = screenCanvas.getContext('2d');
-    ctx.fillStyle = '#071c2d';
-    ctx.fillRect(0, 0, 512, 256);
-    ctx.strokeStyle = 'rgba(90,235,255,0.3)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < 512; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke(); }
-    for (let y = 0; y < 256; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
-    ctx.fillStyle = '#35d8e8';
-    for (const [x, y, w, h] of [[60, 70, 95, 65], [180, 48, 120, 55], [310, 88, 125, 90], [225, 145, 55, 45], [390, 40, 60, 40]]) {
-      ctx.fillRect(x, y, w, h);
-    }
-    ctx.fillStyle = '#07202b';
-    for (const [x, y, w, h] of [[75, 84, 35, 25], [115, 100, 25, 17], [195, 65, 32, 20], [330, 105, 40, 35], [355, 122, 56, 28]]) {
-      ctx.fillRect(x, y, w, h);
-    }
-    ctx.fillStyle = '#d6feff';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText('云上科技美食城 · 世界全息图', 26, 28);
-    ctx.fillStyle = '#8ffaff';
-    ctx.font = '13px sans-serif';
-    ctx.fillText('CLOUD CITY  /  ONLINE', 372, 232);
-    const screenTexture = new THREE.CanvasTexture(screenCanvas);
-    screenTexture.colorSpace = THREE.SRGBColorSpace;
-    const screen = new THREE.Mesh(
-      new THREE.PlaneGeometry(10.5, 5.2),
-      new THREE.MeshBasicMaterial({ map: screenTexture, side: THREE.DoubleSide }),
-    );
-    screen.position.set(0, TOP + 6.2, -10.4);
-    this._add(screen);
-    this._box(11.2, 0.2, 0.25, m.silver, 0, TOP + 3.55, -10.5);
-    this._box(11.2, 0.2, 0.25, m.silver, 0, TOP + 8.85, -10.5);
-    this._box(0.2, 5.5, 0.25, m.silver, -5.4, TOP + 6.2, -10.5);
-    this._box(0.2, 5.5, 0.25, m.silver, 5.4, TOP + 6.2, -10.5);
-    const screenLight = new THREE.PointLight('#4adfff', 2.0, 18, 2);
-    screenLight.position.set(0, TOP + 7, -8.6);
-    this._add(screenLight);
-
-    // 左右两侧美食摊位。
-    for (const side of [-1, 1]) {
-      const x = side * 7.4;
-      this._box(5.2, 0.35, 2.8, m.wood, x, TOP + 1.15, -1.8);
-      this._box(5.2, 0.75, 0.35, m.orange, x, TOP + 1.55, -0.35);
-      this._box(5.6, 0.18, 3.2, m.orange, x, TOP + 4.0, -1.8);
-      this._box(0.16, 2.6, 0.16, m.silver, x - 2.4, TOP + 2.7, -3.0);
-      this._box(0.16, 2.6, 0.16, m.silver, x + 2.4, TOP + 2.7, -3.0);
-      this._box(0.16, 2.6, 0.16, m.silver, x - 2.4, TOP + 2.7, -0.6);
-      this._box(0.16, 2.6, 0.16, m.silver, x + 2.4, TOP + 2.7, -0.6);
-      const stallLight = new THREE.PointLight('#ffad54', 1.7, 10, 2);
-      stallLight.position.set(x, TOP + 3.0, -1.2);
-      this._add(stallLight);
-      // 柜台上的食物小方块。
-      for (const [ox, foodColor] of [[-1.2, '#ffd25a'], [0, '#f16a4f'], [1.2, '#ffe6a1']]) {
-        this._box(0.65, 0.3, 0.65, new THREE.MeshStandardMaterial({ color: foodColor, emissive: foodColor, emissiveIntensity: 0.25 }), x + ox, TOP + 1.85, -1.9);
-      }
-      // 摊位招牌。
-      this._box(3.4, 0.85, 0.12, m.screen, x, TOP + 3.2, -3.12);
-    }
-
-    // 霓虹广告牌和地面导视。
-    for (const [x, z, color] of [[-4, -8, m.magenta], [4, -8, m.cyan], [-9, 4, m.cyan], [9, 4, m.magenta]]) {
-      this._box(0.18, 3.4, 2.6, color, x, TOP + 2.2, z);
-    }
-
-    // 四座小食摊的暖光。
-    this._box(4.5, 0.2, 0.2, m.cyan, 0, TOP + 8.6, -8.4);
-
-    // 大厅里的游客小人。
-    this.visitors = [];
-    for (const [x, z, color] of [[-3.8, 3.2, '#ff8f5e'], [3.8, 2.4, '#7fdfff'], [0, -4.2, '#ffd36e'], [5.2, -5.2, '#d68cff']]) {
-      const person = new THREE.Group();
-      const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
-      const skin = new THREE.MeshStandardMaterial({ color: '#c98a66', roughness: 0.9 });
-      this._box(0.52, 0.72, 0.36, bodyMat, 0, 0.92, 0, person);
-      this._box(0.42, 0.42, 0.4, skin, 0, 1.48, 0, person);
-      this._box(0.12, 0.5, 0.12, skin, -0.34, 0.95, 0, person);
-      this._box(0.12, 0.5, 0.12, skin, 0.34, 0.95, 0, person);
-      this._box(0.16, 0.5, 0.16, m.darkStone, -0.14, 0.25, 0, person);
-      this._box(0.16, 0.5, 0.16, m.darkStone, 0.14, 0.25, 0, person);
-      person.position.set(x, TOP + 0.2, z);
-      person.userData.phase = Math.random() * Math.PI * 2;
-      this.group.add(person);
-      this.visitors.push(person);
-    }
-  }
-
-  _buildRingIsland() {
-    const m = this._materials;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(8.5, 0.9, 12, 64), m.white);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(-38, 20, -8);
-    this._add(ring);
-    const glow = new THREE.Mesh(new THREE.TorusGeometry(8.5, 0.22, 10, 64), m.cyan);
-    glow.rotation.x = Math.PI / 2;
-    glow.position.set(-38, 20.8, -8);
-    this._add(glow);
-    this.rings.push(glow);
-    this._cylinder(4.2, 4.2, 0.6, m.glass, -38, 20, -8, 32);
-    // 右侧橙色六边形穹顶。
-    const hex = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(4.2, 1),
-      new THREE.MeshStandardMaterial({ color: '#ff9d36', emissive: '#c34d0a', emissiveIntensity: 0.9, transparent: true, opacity: 0.72 }),
-    );
-    hex.position.set(34, 23, -20);
-    this._add(hex);
-    const hexRing = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.12, 8, 48), m.orange);
-    hexRing.position.set(34, 23, -20);
-    this._add(hexRing);
-    this.rings.push(hexRing);
-  }
-
-  _buildClouds() {
-    const m = this._materials;
-    for (let i = 0; i < 26; i += 1) {
-      const angle = (i / 26) * Math.PI * 2;
-      const radius = 26 + (i % 5) * 7;
-      const cloud = new THREE.Group();
-      for (let j = 0; j < 5; j += 1) {
-        const puff = new THREE.Mesh(new THREE.SphereGeometry(1.2 + (j % 3) * 0.6, 10, 8), m.cloud);
-        puff.position.set((j - 2) * 1.5, (j % 2) * 0.35, (j % 3) * 0.5);
-        puff.scale.set(1.8, 0.55, 1);
-        cloud.add(puff);
-      }
-      cloud.position.set(Math.cos(angle) * radius, 0 + (i % 4) * 1.2, Math.sin(angle) * radius);
-      cloud.userData.baseX = cloud.position.x;
-      cloud.userData.baseZ = cloud.position.z;
-      cloud.userData.phase = i * 0.37;
-      this.group.add(cloud);
-      this.clouds.push(cloud);
-    }
-  }
-
-  _buildReturnGate() {
-    const m = this._materials;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.18, 12, 48), m.cyan);
-    ring.position.set(0, TOP + 2.7, -7);
-    this._add(ring);
-    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.1, 10, 48), m.magenta);
-    ring2.position.set(0, TOP + 2.7, -7);
-    this._add(ring2);
-    this.rings.push(ring2);
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(3.6, 4.2),
-      new THREE.MeshBasicMaterial({
-        color: '#5cecff', transparent: true, opacity: 0.26, side: THREE.DoubleSide, depthWrite: false, fog: false,
-      }),
-    );
-    plane.position.set(0, TOP + 2.8, -7);
-    this._add(plane);
-    const light = new THREE.PointLight('#68f5ff', 2.5, 18, 2);
-    light.position.set(0, TOP + 3, -5.8);
-    this._add(light);
-    this.returnRing = ring;
-  }
-
-  /** 平台近似碰撞：中央岛、四座卫星岛和四条桥。 */
-  getBlock(x, y, z) {
+  getBlock(x, y, z) { return this._getRaw(Math.floor(x), Math.floor(y), Math.floor(z)); }
+  setBlock(x, y, z, id) {
     const bx = Math.floor(x);
     const by = Math.floor(y);
     const bz = Math.floor(z);
-    for (const p of this.platforms) {
-      if (Math.hypot(x - p.x, z - p.z) <= p.r && by <= p.top && by >= p.top - 6) {
-        if (by === p.top) return BLOCK_IDS.GRASS;
-        return BLOCK_IDS.STONE;
-      }
-    }
-    for (const b of this.bridges) {
-      if (b.axis === 'x' && Math.abs(z - b.z) <= 1.5 && x >= Math.min(b.from, b.to) - 1 && x <= Math.max(b.from, b.to) + 1) {
-        if (by === b.top) return BLOCK_IDS.STONE_BRICKS;
-      }
-      if (b.axis === 'z' && Math.abs(x - b.x) <= 1.5 && z >= Math.min(b.from, b.to) - 1 && z <= Math.max(b.from, b.to) + 1) {
-        if (by === b.top) return BLOCK_IDS.STONE_BRICKS;
-      }
-    }
-    return BLOCK_IDS.AIR;
-  }
-
-  setBlock() { return false; }
-  heightAt(x, z) {
-    for (const p of this.platforms) if (Math.hypot(x - p.x, z - p.z) <= p.r) return p.top;
-    return TOP;
+    if (bx < 0 || bx >= W || by < 0 || by >= H || bz < 0 || bz >= D) return false;
+    const i = this._index(bx, by, bz);
+    if (this.data[i] === id) return false;
+    this.data[i] = id;
+    this._buildMesh();
+    return true;
   }
   getBiomeAt() { return this.biome; }
   biomeAt() { return 'sky'; }
   isInTechCity() { return false; }
   isBlockLoaded() { return true; }
-  getLoadedChunkCount() { return 9; }
+  getLoadedChunkCount() { return 16; }
   getModifiedCount() { return 0; }
-  renderDistance = 4;
+  renderDistance = 5;
 
-  update(delta, playerPosition) {
+  _island(cx, cz, radius, top, style = 'tech') {
+    for (let x = Math.floor(cx - radius); x <= cx + radius; x += 1) {
+      for (let z = Math.floor(cz - radius); z <= cz + radius; z += 1) {
+        const d = Math.hypot(x - cx, z - cz);
+        if (d > radius) continue;
+        const depth = Math.max(1, Math.floor((1 - d / radius) * 7));
+        for (let y = top - depth; y <= top; y += 1) {
+          let id = BLOCK_IDS.TECH_DARK;
+          if (y === top) {
+            id = style === 'green' ? BLOCK_IDS.GRASS : style === 'orange' ? BLOCK_IDS.TECH_ORANGE : BLOCK_IDS.TECH_DARK;
+          } else if (y === top - 1) id = style === 'green' ? BLOCK_IDS.DIRT : BLOCK_IDS.STONE_BRICKS;
+          else if (y === top - 2) id = BLOCK_IDS.STONE_BRICKS;
+          else id = (x + z + y) % 7 === 0 ? BLOCK_IDS.TECH_CYAN : BLOCK_IDS.TECH_DARK;
+          this._set(x, y, z, id);
+        }
+        // 边缘霓虹灯带。
+        if (d > radius - 1.2 && style !== 'green') {
+          this._set(x, top, z, (x + z) % 5 === 0 ? BLOCK_IDS.TECH_CYAN : BLOCK_IDS.TECH_DARK);
+        }
+        // 悬挂的碎岩。
+        if (d > radius * 0.35 && d < radius * 0.8 && (x + z) % 9 === 0) {
+          this._set(x, top - depth - 1 - ((x * 3 + z) % 3), z, BLOCK_IDS.TECH_DARK);
+        }
+      }
+    }
+  }
+
+  _bridge(x0, x1, z0, z1, width = 2) {
+    const minX = Math.min(x0, x1);
+    const maxX = Math.max(x0, x1);
+    const minZ = Math.min(z0, z1);
+    const maxZ = Math.max(z0, z1);
+    for (let x = minX; x <= maxX; x += 1) {
+      for (let z = minZ; z <= maxZ; z += 1) {
+        if (Math.abs(z - (minZ + maxZ) / 2) > width) continue;
+        this._set(x, TOP, z, BLOCK_IDS.TECH_DARK);
+        this._set(x, TOP - 1, z, BLOCK_IDS.STONE_BRICKS);
+        if (Math.abs(z - (minZ + maxZ) / 2) > width - 0.6) {
+          this._set(x, TOP, z, (x % 4 === 0) ? BLOCK_IDS.TECH_CYAN : BLOCK_IDS.TECH_MAGENTA);
+        }
+      }
+    }
+  }
+
+  _dome(cx, cz, radius, y0) {
+    for (let x = cx - radius; x <= cx + radius; x += 1) {
+      for (let z = cz - radius; z <= cz + radius; z += 1) {
+        for (let y = y0; y <= y0 + radius; y += 1) {
+          const dx = x - cx;
+          const dy = y - y0;
+          const dz = z - cz;
+          const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (d < radius - 1.35 || d > radius) continue;
+          // 南侧开门，让玩家可以走进去。
+          if (dz > radius * 0.72 && dx > -3 && dx < 3 && dy < 5) {
+            this._set(x, y, z, BLOCK_IDS.AIR);
+            continue;
+          }
+          const angle = Math.atan2(dz, dx);
+          const rib = Math.abs(Math.sin(angle * 4)) < 0.11 || Math.abs(dy - 7.5) < 0.6;
+          this._set(x, y, z, rib ? BLOCK_IDS.TECH_WHITE : BLOCK_IDS.GLASS);
+        }
+      }
+    }
+    for (let x = cx - radius - 1; x <= cx + radius + 1; x += 1) {
+      for (let z = cz - radius - 1; z <= cz + radius + 1; z += 1) {
+        if (Math.hypot(x - cx, z - cz) <= radius + 1) this._set(x, y0, z, BLOCK_IDS.TECH_WHITE);
+      }
+    }
+  }
+
+  _generate() {
+    const B = BLOCK_IDS;
+    this._island(CX, CZ, 21, TOP, 'tech');
+    this._island(14, 44, 9, 14, 'tech');
+    this._island(74, 44, 10, 15, 'orange');
+    this._island(44, 14, 8, 14, 'orange');
+    this._island(44, 74, 10, TOP, 'green');
+    this._island(14, 74, 6, 13, 'tech');
+    this._island(44, 82, 4, TOP, 'tech');
+
+    // 四座主桥。
+    this._bridge(CX - 21, 14, CZ, CZ, 2);
+    this._bridge(CX + 21, 74, CZ, CZ, 2);
+    this._bridge(CX, CZ - 21, CX, 14, 2);
+    this._bridge(CX, CZ + 21, CX, 74, 2);
+    this._bridge(74, 82, CZ, CZ, 2);
+    this._bridge(CX, 74, CX, 82, 2);
+    this._bridge(CX, CZ, CX, 34, 2);
+
+    // 中央穹顶大厅。
+    this._dome(CX, CZ, 15, TOP);
+    // 穹顶内部地板和科技纹路。
+    for (let x = CX - 13; x <= CX + 13; x += 1) {
+      for (let z = CZ - 13; z <= CZ + 13; z += 1) {
+        if (Math.hypot(x - CX, z - CZ) > 13) continue;
+        this._set(x, TOP, z, (Math.abs(x - CX) < 2 || Math.abs(z - CZ) < 2) ? B.TECH_CYAN : B.TECH_DARK);
+      }
+    }
+    // 中央能量柱：只保留一根细塔芯，避免挡住全息屏。
+    this._set(CX, TOP + 1, CZ, B.TECH_WHITE);
+    for (let y = TOP + 2; y <= TOP + 22; y += 1) {
+      this._set(CX, y, CZ, y % 4 === 0 ? B.TECH_CYAN : B.TECH_WHITE);
+    }
+    this._set(CX, TOP + 23, CZ, B.TECH_CYAN);
+
+    // 穹顶内部美食大厅：吧台、招牌和隐藏汉堡。
+    for (const side of [-1, 1]) {
+      const x0 = CX + side * 7;
+      for (let z = CZ - 7; z <= CZ - 3; z += 1) {
+        for (let x = x0 - 2; x <= x0 + 2; x += 1) {
+          this._set(x, TOP + 1, z, B.COPPER);
+          this._set(x, TOP + 2, z, B.TECH_WHITE);
+        }
+      }
+      for (let x = x0 - 3; x <= x0 + 3; x += 1) this._set(x, TOP + 4, CZ - 8, B.TECH_ORANGE);
+      this._set(x0 - 3, TOP + 2, CZ - 8, B.TECH_MAGENTA);
+      this._set(x0 + 3, TOP + 2, CZ - 8, B.TECH_CYAN);
+    }
+    // 隐藏汉堡：吧台侧面的发光展示台。
+    this._set(FOOD_SPOTS.burger.x, FOOD_SPOTS.burger.y - 1, FOOD_SPOTS.burger.z, B.TECH_DARK);
+    this._set(FOOD_SPOTS.burger.x, FOOD_SPOTS.burger.y, FOOD_SPOTS.burger.z, B.BURGER);
+
+    // 南侧温室岛。
+    for (let x = 40; x <= 48; x += 1) {
+      for (let z = 68; z <= 76; z += 1) {
+        if (Math.hypot(x - 44, z - 72) > 6) continue;
+        this._set(x, 13, z, (x + z) % 4 === 0 ? B.GLASS : B.GRASS);
+      }
+    }
+    for (const [x, z] of [[41, 69], [44, 69], [47, 69]]) {
+      for (let y = 13; y <= 19; y += 1) {
+        this._set(x, y, z, y === 19 ? B.TECH_WHITE : B.GLASS);
+      }
+      this._set(x, 14, z, B.GRASS);
+    }
+    this._set(FOOD_SPOTS.fries.x, FOOD_SPOTS.fries.y, FOOD_SPOTS.fries.z, B.FRIES);
+
+    // 西侧 DNA 塔。
+    for (let i = 0; i < 22; i += 1) {
+      const y = 15 + i;
+      const a = i * 0.55;
+      for (const off of [0, Math.PI]) {
+        this._set(14 + Math.round(Math.cos(a + off) * 2), y, 44 + Math.round(Math.sin(a + off) * 2),
+          i % 2 === 0 ? B.TECH_CYAN : B.TECH_MAGENTA);
+      }
+    }
+    this._set(FOOD_SPOTS.popcorn.x, FOOD_SPOTS.popcorn.y, FOOD_SPOTS.popcorn.z, B.POPCORN);
+
+    // 东侧蓝晶摩天楼。
+    for (let x = 71; x <= 77; x += 1) {
+      for (let z = 41; z <= 47; z += 1) {
+        if (x !== 71 && x !== 77 && z !== 41 && z !== 47) continue;
+        for (let y = 16; y <= 31; y += 1) {
+          this._set(x, y, z, y % 4 === 0 ? B.TECH_CYAN : B.GLASS);
+        }
+      }
+    }
+    this._set(74, 32, 44, B.TECH_WHITE);
+
+    // 北侧橙色六边形穹顶。
+    for (let x = 39; x <= 49; x += 1) {
+      for (let z = 9; z <= 19; z += 1) {
+        for (let y = 14; y <= 22; y += 1) {
+          const d = Math.hypot(x - 44, y - 17, z - 14);
+          if (d >= 4 && d <= 5.2) this._set(x, y, z, B.TECH_ORANGE);
+        }
+      }
+    }
+
+    // 环形浮空岛（西侧远处）。
+    for (let i = 0; i < 48; i += 1) {
+      const a = (i / 48) * Math.PI * 2;
+      const x = Math.round(14 + Math.cos(a) * 7);
+      const z = Math.round(74 + Math.sin(a) * 7);
+      this._set(x, 13, z, i % 3 === 0 ? B.TECH_CYAN : B.TECH_WHITE);
+      this._set(x, 12, z, B.TECH_DARK);
+    }
+
+    // 隐藏食物周围的提示灯和承托方块。
+    for (const spot of Object.values(FOOD_SPOTS)) {
+      this._set(spot.x, spot.y - 1, spot.z, B.TECH_DARK);
+      this._set(spot.x - 1, spot.y - 1, spot.z, B.TECH_MAGENTA);
+      this._set(spot.x + 1, spot.y - 1, spot.z, B.TECH_CYAN);
+    }
+
+    // 空中的体素云朵。
+    const clouds = [[10, 3, 14], [70, 2, 16], [12, 5, 70], [70, 4, 72], [30, 6, 8], [58, 5, 80]];
+    for (const [cx, cy, cz] of clouds) {
+      for (let x = cx - 5; x <= cx + 5; x += 1) {
+        for (let z = cz - 3; z <= cz + 3; z += 1) {
+          const d = Math.hypot(x - cx, z - cz);
+          if (d > 5 || (x + z) % 3 === 0) continue;
+          this._set(x, cy, z, B.SNOW);
+          this._set(x, cy + 1, z, B.SNOW);
+        }
+      }
+    }
+
+    // 岛屿边缘的瀑布水柱。
+    for (const [x, z] of [[34, 72], [54, 72], [23, 44], [65, 44]]) {
+      for (let y = 2; y <= 10; y += 1) this._set(x, y, z, B.WATER);
+    }
+  }
+
+  _buildAtlas() {
+    const canvas = createBlockAtlasCanvas('classic');
+    this.atlas = new THREE.CanvasTexture(canvas);
+    this.atlas.magFilter = THREE.NearestFilter;
+    this.atlas.minFilter = THREE.NearestFilter;
+    this.atlas.generateMipmaps = false;
+    this.atlas.colorSpace = THREE.SRGBColorSpace;
+    this.solidMaterial = new THREE.MeshLambertMaterial({ map: this.atlas, vertexColors: true });
+    this.glowMaterial = new THREE.MeshBasicMaterial({ map: this.atlas, vertexColors: true, fog: false });
+    this.glassMaterial = new THREE.MeshLambertMaterial({
+      map: this.atlas, vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.waterMaterial = new THREE.MeshLambertMaterial({
+      map: this.atlas, vertexColors: true, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide,
+    });
+  }
+
+  _addFace(target, x, y, z, face, id) {
+    const block = getBlock(id);
+    if (!block) return;
+    const tile = face.n[1] === 1 ? block.tiles.top : face.n[1] === -1 ? block.tiles.bottom : block.tiles.side;
+    const col = tile % ATLAS_COLS;
+    const row = Math.floor(tile / ATLAS_COLS);
+    const u0 = col / ATLAS_COLS;
+    const u1 = (col + 1) / ATLAS_COLS;
+    const v1 = 1 - row / ATLAS_COLS;
+    const v0 = 1 - (row + 1) / ATLAS_COLS;
+    const color = new THREE.Color(getBlockColor(id)).multiplyScalar(face.shade);
+    const base = target.positions.length / 3;
+    for (const [vx, vy, vz] of face.v) {
+      target.positions.push(x + vx, y + vy, z + vz);
+      target.normals.push(...face.n);
+      target.colors.push(color.r, color.g, color.b);
+    }
+    target.uvs.push(u0, v1, u1, v1, u1, v0, u0, v0);
+    target.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+
+  _buildMesh() {
+    for (const old of this.renderMeshes || []) {
+      this.group.remove(old);
+      old.geometry.dispose();
+    }
+    this.renderMeshes = [];
+    const sets = {
+      solid: { positions: [], normals: [], uvs: [], colors: [], indices: [] },
+      glow: { positions: [], normals: [], uvs: [], colors: [], indices: [] },
+      glass: { positions: [], normals: [], uvs: [], colors: [], indices: [] },
+      water: { positions: [], normals: [], uvs: [], colors: [], indices: [] },
+    };
+    const glowIds = new Set([BLOCK_IDS.NEON, BLOCK_IDS.TECH_CYAN, BLOCK_IDS.TECH_MAGENTA, BLOCK_IDS.TECH_ORANGE, BLOCK_IDS.LANTERN]);
+    for (let x = 0; x < W; x += 1) {
+      for (let z = 0; z < D; z += 1) {
+        for (let y = 0; y < H; y += 1) {
+          const id = this.data[this._index(x, y, z)];
+          if (id === BLOCK_IDS.AIR) continue;
+          let key = 'solid';
+          if (id === BLOCK_IDS.GLASS) key = 'glass';
+          else if (id === BLOCK_IDS.WATER) key = 'water';
+          else if (glowIds.has(id)) key = 'glow';
+          const target = sets[key];
+          for (const face of FACE_DEFS) {
+            const nx = x + face.n[0];
+            const ny = y + face.n[1];
+            const nz = z + face.n[2];
+            const neighbor = nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= D
+              ? BLOCK_IDS.AIR : this.data[this._index(nx, ny, nz)];
+            if (neighbor !== BLOCK_IDS.AIR) continue;
+            this._addFace(target, x, y, z, face, id);
+          }
+        }
+      }
+    }
+    const make = (set, material) => {
+      if (!set.positions.length) return;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(set.positions, 3));
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(set.normals, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(set.uvs, 2));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(set.colors, 3));
+      geometry.setIndex(set.indices);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
+      this.renderMeshes.push(mesh);
+    };
+    make(sets.solid, this.solidMaterial);
+    make(sets.glow, this.glowMaterial);
+    make(sets.glass, this.glassMaterial);
+    make(sets.water, this.waterMaterial);
+  }
+
+  _buildPortal() {
+    const B = BLOCK_IDS;
+    const x0 = 41;
+    const x1 = 47;
+    const z = 34;
+    for (const x of [x0, x1]) for (let y = TOP + 1; y <= TOP + 5; y += 1) this._set(x, y, z, B.OBSIDIAN);
+    for (let x = x0; x <= x1; x += 1) this._set(x, TOP + 5, z, B.OBSIDIAN);
+    for (let x = x0 + 1; x < x1; x += 1) for (let y = TOP + 1; y <= TOP + 4; y += 1) this._set(x, y, z, B.AIR);
+    this._buildMesh();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, 96);
+    g.addColorStop(0, '#06243a'); g.addColorStop(0.45, '#20d8ff'); g.addColorStop(0.75, '#b55cff'); g.addColorStop(1, '#e8ffff');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 96);
+    for (let i = 0; i < 20; i += 1) {
+      ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.25)' : 'rgba(130,250,255,0.2)';
+      ctx.fillRect((i * 17) % 64, (i * 23) % 96, 2, 14);
+    }
+    this.portalTexture = new THREE.CanvasTexture(canvas);
+    this.portalTexture.wrapS = THREE.RepeatWrapping;
+    this.portalTexture.wrapT = THREE.RepeatWrapping;
+    this.portalTexture.repeat.set(1.1, 1.3);
+    this.portalMaterial = new THREE.MeshBasicMaterial({
+      map: this.portalTexture, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, fog: false,
+    });
+    this.portalMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 5.4), this.portalMaterial);
+    this.portalMesh.position.set(44, TOP + 3.5, z + 0.02);
+    this.group.add(this.portalMesh);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.1, 8, 48), new THREE.MeshBasicMaterial({
+      color: '#64f4ff', transparent: true, opacity: 0.9,
+    }));
+    ring.position.set(44, TOP + 3.5, z + 0.05);
+    this.group.add(ring);
+    this.portalRing = ring;
+    const light = new THREE.PointLight('#61f3ff', 3, 20, 2);
+    light.position.set(44, TOP + 4, z + 2);
+    this.group.add(light);
+  }
+
+  _buildLights() {
+    const ambient = new THREE.AmbientLight('#e9f8ff', 1.1);
+    const hemi = new THREE.HemisphereLight('#eaf9ff', '#4f7c8d', 1.1);
+    const sun = new THREE.DirectionalLight('#fff0c8', 2.0);
+    sun.position.set(35, 55, 20);
+    this.group.add(ambient, hemi, sun);
+    for (const [x, y, z, color] of [[44, 14, 78, '#ffb347'], [14, 18, 44, '#68f5ff'], [74, 20, 44, '#ff75e0'], [44, 16, 14, '#ff9f3e']]) {
+      const light = new THREE.PointLight(color, 2.2, 24, 2);
+      light.position.set(x, y, z);
+      this.group.add(light);
+    }
+  }
+
+  _buildBackground() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, 512);
+    g.addColorStop(0, '#0d2b55');
+    g.addColorStop(0.38, '#4f8fc7');
+    g.addColorStop(0.62, '#ffbd7b');
+    g.addColorStop(0.8, '#ffd9a8');
+    g.addColorStop(1, '#7eb6de');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 1024, 512);
+    for (let i = 0; i < 80; i += 1) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect((i * 137) % 1024, 40 + (i * 71) % 220, 3, 1);
+    }
+    this.background = new THREE.CanvasTexture(canvas);
+    this.background.colorSpace = THREE.SRGBColorSpace;
+  }
+
+  _buildSkyEffects() {
+    // 中央能量光柱：这是效果层，建筑本体仍然是方块。
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: '#71f4ff', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 22, 16, 1, true), beamMat);
+    beam.position.set(44, TOP + 11, 44);
+    this.group.add(beam);
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.45, 22, 12, 1, true), new THREE.MeshBasicMaterial({
+      color: '#e8ffff', transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    core.position.set(44, TOP + 11, 44);
+    this.group.add(core);
+    // 全息世界地图屏。
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#061c2c'; ctx.fillRect(0, 0, 512, 256);
+    ctx.strokeStyle = 'rgba(75,235,255,0.3)';
+    for (let x = 0; x < 512; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke(); }
+    for (let y = 0; y < 256; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
+    ctx.fillStyle = '#36dbe9';
+    for (const [x, y, w, h] of [[55, 70, 100, 60], [180, 48, 120, 55], [315, 88, 120, 88], [225, 145, 55, 45], [390, 40, 60, 40]]) ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#061c2c';
+    for (const [x, y, w, h] of [[75, 84, 35, 25], [115, 100, 25, 17], [195, 65, 32, 20], [330, 105, 40, 35], [355, 122, 56, 28]]) ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#d6feff'; ctx.font = 'bold 22px sans-serif'; ctx.fillText('云上科技美食城 · 世界全息图', 26, 28);
+    ctx.fillStyle = '#8ffaff'; ctx.font = '13px sans-serif'; ctx.fillText('CLOUD CITY  /  ONLINE', 372, 232);
+    const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(10.5, 5.2), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    screen.position.set(44, TOP + 7.2, 31.6);
+    this.group.add(screen);
+    // 科技光点。
+    const pts = [];
+    for (let i = 0; i < 220; i += 1) {
+      pts.push(8 + Math.random() * 72, 3 + Math.random() * 28, 8 + Math.random() * 72);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.points = new THREE.Points(geo, new THREE.PointsMaterial({
+      color: '#8df7ff', size: 0.2, transparent: true, opacity: 0.8, depthWrite: false,
+    }));
+    this.group.add(this.points);
+  }
+
+  heightAt(x, z) {
+    for (let y = H - 1; y >= 0; y -= 1) if (this.getBlock(x, y, z) !== BLOCK_IDS.AIR) return y;
+    return TOP;
+  }
+
+  update(delta) {
     this.time += delta;
-    for (const cloud of this.clouds) {
-      cloud.position.x = cloud.userData.baseX + Math.sin(this.time * 0.035 + cloud.userData.phase) * 2.2;
-      cloud.position.z = cloud.userData.baseZ + Math.cos(this.time * 0.03 + cloud.userData.phase) * 1.4;
-    }
-    for (let i = 0; i < this.rings.length; i += 1) {
-      this.rings[i].rotation.z += delta * (i % 2 === 0 ? 0.12 : -0.16);
-    }
-    for (const fall of this.waterfalls) {
-      fall.material.opacity = 0.55 + Math.sin(this.time * 2 + fall.position.x) * 0.08;
-    }
-    if (this.beamPoints) this.beamPoints.rotation.y += delta * 0.16;
-    for (const visitor of this.visitors || []) {
-      visitor.position.y = TOP + 0.2 + Math.sin(this.time * 1.6 + visitor.userData.phase) * 0.035;
-      visitor.rotation.y += Math.sin(this.time * 0.4 + visitor.userData.phase) * delta * 0.2;
-    }
-    if (playerPosition && playerPosition.y < -8) {
-      // 掉下云海时送回中央广场，小朋友不会卡在虚空里。
-      return { respawn: true };
-    }
+    if (this.portalTexture) this.portalTexture.offset.y -= delta * 0.5;
+    if (this.portalRing) this.portalRing.rotation.z += delta * 0.5;
+    if (this.points) this.points.rotation.y += delta * 0.02;
     return { respawn: false };
   }
 
@@ -552,5 +524,8 @@ export class SkyCityRealm {
         else object.material.dispose();
       }
     });
+    this.atlas?.dispose();
+    this.portalTexture?.dispose();
+    this.background?.dispose();
   }
 }

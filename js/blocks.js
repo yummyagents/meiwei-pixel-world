@@ -67,6 +67,14 @@ export const TILES = Object.freeze({
   NETHERRACK: 53,
   SOUL_SAND: 54,
   NETHER_BRICK: 55,
+  TECH_WHITE: 56,
+  TECH_CYAN: 57,
+  TECH_MAGENTA: 58,
+  TECH_DARK: 59,
+  TECH_ORANGE: 60,
+  BURGER: 61,
+  FRIES: 62,
+  POPCORN: 63,
 });
 
 export const BLOCK_IDS = Object.freeze({
@@ -123,6 +131,14 @@ export const BLOCK_IDS = Object.freeze({
   NETHERRACK: 50,
   SOUL_SAND: 51,
   NETHER_BRICK: 52,
+  TECH_WHITE: 53,
+  TECH_CYAN: 54,
+  TECH_MAGENTA: 55,
+  TECH_DARK: 56,
+  TECH_ORANGE: 57,
+  BURGER: 58,
+  FRIES: 59,
+  POPCORN: 60,
 });
 
 /**
@@ -618,7 +634,95 @@ export const BLOCKS = Object.freeze({
     transparent: false,
     tiles: { top: TILES.NETHER_BRICK, bottom: TILES.NETHER_BRICK, side: TILES.NETHER_BRICK },
   },
+  [BLOCK_IDS.TECH_WHITE]: {
+    id: BLOCK_IDS.TECH_WHITE,
+    key: 'tech_white',
+    name: '云科技白板',
+    icon: '⬜',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.TECH_WHITE, bottom: TILES.TECH_WHITE, side: TILES.TECH_WHITE },
+  },
+  [BLOCK_IDS.TECH_CYAN]: {
+    id: BLOCK_IDS.TECH_CYAN,
+    key: 'tech_cyan',
+    name: '云科技青光块',
+    icon: '🟦',
+    solid: true,
+    transparent: false,
+    bright: true,
+    tiles: { top: TILES.TECH_CYAN, bottom: TILES.TECH_CYAN, side: TILES.TECH_CYAN },
+  },
+  [BLOCK_IDS.TECH_MAGENTA]: {
+    id: BLOCK_IDS.TECH_MAGENTA,
+    key: 'tech_magenta',
+    name: '云科技品红块',
+    icon: '🟪',
+    solid: true,
+    transparent: false,
+    bright: true,
+    tiles: { top: TILES.TECH_MAGENTA, bottom: TILES.TECH_MAGENTA, side: TILES.TECH_MAGENTA },
+  },
+  [BLOCK_IDS.TECH_DARK]: {
+    id: BLOCK_IDS.TECH_DARK,
+    key: 'tech_dark',
+    name: '云科技暗金属',
+    icon: '⬛',
+    solid: true,
+    transparent: false,
+    tiles: { top: TILES.TECH_DARK, bottom: TILES.TECH_DARK, side: TILES.TECH_DARK },
+  },
+  [BLOCK_IDS.TECH_ORANGE]: {
+    id: BLOCK_IDS.TECH_ORANGE,
+    key: 'tech_orange',
+    name: '云科技橙光块',
+    icon: '🟧',
+    solid: true,
+    transparent: false,
+    bright: true,
+    tiles: { top: TILES.TECH_ORANGE, bottom: TILES.TECH_ORANGE, side: TILES.TECH_ORANGE },
+  },
+  [BLOCK_IDS.BURGER]: {
+    id: BLOCK_IDS.BURGER,
+    key: 'burger',
+    name: '汉堡方块',
+    icon: '🍔',
+    solid: true,
+    transparent: false,
+    food: true,
+    tiles: { top: TILES.BURGER, bottom: TILES.BURGER, side: TILES.BURGER },
+  },
+  [BLOCK_IDS.FRIES]: {
+    id: BLOCK_IDS.FRIES,
+    key: 'fries',
+    name: '薯条方块',
+    icon: '🍟',
+    solid: true,
+    transparent: false,
+    food: true,
+    tiles: { top: TILES.FRIES, bottom: TILES.FRIES, side: TILES.FRIES },
+  },
+  [BLOCK_IDS.POPCORN]: {
+    id: BLOCK_IDS.POPCORN,
+    key: 'popcorn',
+    name: '鸡米花方块',
+    icon: '🍗',
+    solid: true,
+    transparent: false,
+    food: true,
+    tiles: { top: TILES.POPCORN, bottom: TILES.POPCORN, side: TILES.POPCORN },
+  },
 });
+
+export const FOOD_BLOCK_IDS = Object.freeze([
+  BLOCK_IDS.BURGER,
+  BLOCK_IDS.FRIES,
+  BLOCK_IDS.POPCORN,
+]);
+
+export function isFoodBlock(id) {
+  return FOOD_BLOCK_IDS.includes(id);
+}
 
 /** 给背包按固定顺序展示的基础方块。 */
 export const CREATIVE_BLOCKS = Object.freeze([
@@ -640,6 +744,11 @@ export const CREATIVE_BLOCKS = Object.freeze([
   BLOCK_IDS.NETHERRACK,
   BLOCK_IDS.SOUL_SAND,
   BLOCK_IDS.NETHER_BRICK,
+  BLOCK_IDS.TECH_WHITE,
+  BLOCK_IDS.TECH_CYAN,
+  BLOCK_IDS.TECH_MAGENTA,
+  BLOCK_IDS.TECH_DARK,
+  BLOCK_IDS.TECH_ORANGE,
   BLOCK_IDS.WOOD,
   BLOCK_IDS.CHERRY_WOOD,
   BLOCK_IDS.LEAVES,
@@ -729,6 +838,14 @@ export const BLOCK_COLORS = Object.freeze({
   [BLOCK_IDS.NETHERRACK]: '#9e3030',
   [BLOCK_IDS.SOUL_SAND]: '#5b4035',
   [BLOCK_IDS.NETHER_BRICK]: '#5a3038',
+  [BLOCK_IDS.TECH_WHITE]: '#e8f4f8',
+  [BLOCK_IDS.TECH_CYAN]: '#31e7ff',
+  [BLOCK_IDS.TECH_MAGENTA]: '#f65bd7',
+  [BLOCK_IDS.TECH_DARK]: '#263746',
+  [BLOCK_IDS.TECH_ORANGE]: '#ff9f3e',
+  [BLOCK_IDS.BURGER]: '#d9893a',
+  [BLOCK_IDS.FRIES]: '#f5c542',
+  [BLOCK_IDS.POPCORN]: '#e5aa57',
 });
 
 export function getBlockColor(id) {
@@ -1494,6 +1611,98 @@ function drawTile(ctx, tile) {
         const offset = y % 2 === 0 ? 4 : 9;
         ctx.fillRect(offset, y, 1, 4);
       }
+      break;
+
+    case TILES.TECH_WHITE:
+      fill(ctx, '#dcecf3');
+      speckle(ctx, ['#ffffff', '#b9d6e2', '#f4fbff', '#a8c8d8'], 2301, 30);
+      ctx.fillStyle = '#8fb8ca';
+      ctx.fillRect(0, 0, 16, 1);
+      ctx.fillRect(0, 15, 16, 1);
+      break;
+
+    case TILES.TECH_CYAN:
+      fill(ctx, '#0a3a4a');
+      ctx.fillStyle = '#37f0ff';
+      ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#b9ffff';
+      ctx.fillRect(5, 4, 6, 8);
+      ctx.fillStyle = '#0b6b7d';
+      ctx.fillRect(2, 7, 12, 1);
+      ctx.fillRect(7, 2, 1, 12);
+      break;
+
+    case TILES.TECH_MAGENTA:
+      fill(ctx, '#3a1235');
+      ctx.fillStyle = '#f05bd8';
+      ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#ffc1f3';
+      ctx.fillRect(4, 5, 8, 6);
+      ctx.fillStyle = '#6d1f5e';
+      ctx.fillRect(2, 7, 12, 1);
+      ctx.fillRect(7, 2, 1, 12);
+      break;
+
+    case TILES.TECH_DARK:
+      fill(ctx, '#263746');
+      speckle(ctx, ['#354b5d', '#15222c', '#4a6275', '#0d151b'], 2401, 38);
+      ctx.fillStyle = '#60e9ff';
+      ctx.fillRect(3, 3, 2, 2);
+      ctx.fillRect(11, 11, 2, 2);
+      break;
+
+    case TILES.TECH_ORANGE:
+      fill(ctx, '#5a2b0b');
+      ctx.fillStyle = '#ff9f3e';
+      ctx.fillRect(2, 2, 12, 12);
+      ctx.fillStyle = '#ffe0a8';
+      ctx.fillRect(5, 5, 6, 6);
+      ctx.fillStyle = '#8a430d';
+      ctx.fillRect(2, 7, 12, 1);
+      break;
+
+    case TILES.BURGER:
+      fill(ctx, '#c78432');
+      ctx.fillStyle = '#f6d27b';
+      ctx.fillRect(1, 2, 14, 5);
+      ctx.fillStyle = '#5e9a3b';
+      ctx.fillRect(1, 7, 14, 2);
+      ctx.fillStyle = '#7d3d24';
+      ctx.fillRect(1, 9, 14, 3);
+      ctx.fillStyle = '#f6d27b';
+      ctx.fillRect(1, 12, 14, 3);
+      ctx.fillStyle = '#fff0a8';
+      ctx.fillRect(3, 4, 2, 1);
+      ctx.fillRect(10, 4, 2, 1);
+      break;
+
+    case TILES.FRIES:
+      fill(ctx, '#b9472f');
+      ctx.fillStyle = '#f7d34a';
+      for (const x of [2, 4, 6, 8, 10, 12]) {
+        const h = 6 + (x % 4);
+        ctx.fillRect(x, 14 - h, 2, h);
+      }
+      ctx.fillStyle = '#fff0a0';
+      ctx.fillRect(3, 6, 1, 4);
+      ctx.fillRect(9, 3, 1, 4);
+      ctx.fillStyle = '#7a2419';
+      ctx.fillRect(2, 13, 12, 2);
+      break;
+
+    case TILES.POPCORN:
+      fill(ctx, '#9b5b2c');
+      ctx.fillStyle = '#f6d99a';
+      for (let i = 0; i < 14; i += 1) {
+        const x = 2 + (i * 7) % 12;
+        const y = 3 + (i * 5) % 10;
+        ctx.fillRect(x, y, 2, 2);
+      }
+      ctx.fillStyle = '#fff4c8';
+      ctx.fillRect(4, 5, 2, 2);
+      ctx.fillRect(10, 9, 2, 2);
+      ctx.fillStyle = '#703b1c';
+      ctx.fillRect(1, 12, 14, 3);
       break;
 
     case TILES.LAVA:
