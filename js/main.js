@@ -36,6 +36,7 @@ const state = {
   portalCooldown: 0,
   portalHintShown: false,
   skyFoodQuest: { burger: false, fries: false, popcorn: false },
+  skyGame: { active: false, started: false, cores: 0, ready: false, completed: false },
   themeResumeOnClose: false,
 };
 
@@ -118,6 +119,9 @@ const ui = new GameUI({
   onDeletePhoto: (photoId) => {
     deletePhoto(photoId);
   },
+  onDownloadPhoto: (photoId) => {
+    downloadPhoto(photoId);
+  },
   onWorldMapClose: () => {
     closeWorldMap();
   },
@@ -147,6 +151,14 @@ window.__gameBooted = true;
 document.getElementById('btn-mobile-fly')?.addEventListener('click', () => toggleFlight());
 document.getElementById('btn-mobile-view')?.addEventListener('click', () => toggleCameraView());
 document.getElementById('btn-mobile-map')?.addEventListener('click', () => openWorldMap());
+document.getElementById('btn-mobile-inventory')?.addEventListener('click', () => openInventory());
+document.getElementById('btn-mobile-spawn')?.addEventListener('click', () => returnToMainSpawn());
+document.getElementById('btn-mobile-photo')?.addEventListener('click', () => {
+  if (!state.game || state.paused) return;
+  capturePhoto();
+});
+document.getElementById('btn-mobile-gallery')?.addEventListener('click', () => openGallery());
+document.getElementById('btn-mobile-pause')?.addEventListener('click', () => pauseGame('mobile'));
 restoreRetryAfterReload();
 refreshHomeSaveUI();
 window.setInterval(autoSaveGame, 12000);
@@ -197,6 +209,74 @@ window.__MEIWEI_DEBUG__ = {
   getSaveData() {
     return state.game ? createSaveData() : saveManager.readSave();
   },
+  pickCenter() {
+    if (!state.game) return null;
+    const g = state.game;
+    const raycaster = new g.three.Raycaster();
+    const dir = g.player.getLookDirection();
+    raycaster.set(g.camera.position, dir);
+    const hits = raycaster.intersectObjects(g.scene.children, true).filter((hit) => hit.object.visible);
+    return hits.slice(0, 4).map((hit) => ({
+      name: hit.object.name,
+      type: hit.object.type,
+      distance: +hit.distance.toFixed(2),
+      point: { x: +hit.point.x.toFixed(1), y: +hit.point.y.toFixed(1), z: +hit.point.z.toFixed(1) },
+      parent: hit.object.parent?.name || '',
+      material: hit.object.material?.type || '',
+    }));
+  },
+  pickSkyAt(ndcX = 0, ndcY = 0) {
+    if (!state.game?.sky) return null;
+    const g = state.game;
+    const raycaster = new g.three.Raycaster();
+    raycaster.setFromCamera(new g.three.Vector2(ndcX, ndcY), g.camera);
+    const hits = raycaster.intersectObject(g.sky.group, true).filter((hit) => hit.object.isMesh);
+    return hits.slice(0, 3).map((hit) => {
+      const p = hit.point;
+      return { distance: +hit.distance.toFixed(2), x: +p.x.toFixed(1), y: +p.y.toFixed(1), z: +p.z.toFixed(1), block: g.sky.getBlock(p.x - hit.face.normal.x * 0.4, p.y - hit.face.normal.y * 0.4, p.z - hit.face.normal.z * 0.4), normal: hit.face.normal.toArray() };
+    });
+  },
+  pickSkyCenter() {
+    if (!state.game?.sky) return null;
+    const g = state.game;
+    const raycaster = new g.three.Raycaster();
+    raycaster.set(g.camera.position, g.player.getLookDirection());
+    const hits = raycaster.intersectObject(g.sky.group, true).filter((hit) => hit.object.isMesh);
+    return hits.slice(0, 5).map((hit) => {
+      const p = hit.point;
+      return {
+        distance: +hit.distance.toFixed(2),
+        x: +p.x.toFixed(1), y: +p.y.toFixed(1), z: +p.z.toFixed(1),
+        block: g.sky.getBlock(p.x - hit.face.normal.x * 0.4, p.y - hit.face.normal.y * 0.4, p.z - hit.face.normal.z * 0.4),
+        normal: hit.face.normal.toArray(),
+      };
+    });
+  },
+  skinMeshes() {
+    if (!state.game) return null;
+    const out = [];
+    state.game.scene.traverse((o) => {
+      if (!o.isMesh || !o.material?.color) return;
+      const hex = o.material.color.getHexString();
+      if (['f1c49d', 'c58f64', 'd8a07a'].includes(hex)) {
+        const p = o.getWorldPosition(new state.game.three.Vector3());
+        out.push({ name: o.name, parent: o.parent?.name, visible: o.visible, color: hex, x:+p.x.toFixed(1), y:+p.y.toFixed(1), z:+p.z.toFixed(1) });
+      }
+    });
+    return out;
+  },
+  inspectSkyScene() {
+    if (!state.game) return null;
+    const out = [];
+    state.game.scene.traverse((object) => {
+      if (!object.isMesh && !object.isGroup) return;
+      if (object.name?.includes('avatar') || object.name?.includes('sky')) {
+        const p = object.getWorldPosition(new state.game.three.Vector3());
+        out.push({ name: object.name, type: object.type, visible: object.visible, x: +p.x.toFixed(1), y: +p.y.toFixed(1), z: +p.z.toFixed(1), parent: object.parent?.name || '' });
+      }
+    });
+    return out;
+  },
   getGalleryCount() {
     return gallery.count();
   },
@@ -224,6 +304,8 @@ window.__MEIWEI_DEBUG__ = {
                 },
                 yaw: player.yaw,
                 pitch: player.pitch,
+                cameraMode: player.cameraMode,
+                avatarVisible: player.avatar?.visible ?? null,
               };
             })(),
             chunks: state.game.world.getLoadedChunkCount(),
@@ -239,8 +321,11 @@ window.__MEIWEI_DEBUG__ = {
               spawn: { ...state.game.sky.spawn },
               returnPortal: { ...state.game.sky.returnPortal },
               foodSpots: { ...state.game.sky.foodSpots },
+              energyCores: state.game.sky.energyCores.map((core) => ({ ...core })),
+              delivery: { ...state.game.sky.delivery },
             } : null,
             skyFoodQuest: { ...state.skyFoodQuest },
+            skyGame: { ...state.skyGame },
             nether: state.game.nether
               ? {
                   mobs: state.game.nether.mobs.length,
@@ -756,10 +841,15 @@ function tick(now) {
     if (game.dimension === 'nether') {
       ui.setUnderwater(false);
     } else if (game.dimension === 'sky') {
+      game.scene.traverse((object) => {
+        if (object.isMesh && object.material?.color?.getHexString?.() === 'f1c49d') object.visible = false;
+      });
+      if (game.player.avatar) game.player.avatar.visible = false;
       if (game.player.position.y < -8) {
         game.player.teleport(game.sky.spawn.x, game.sky.spawn.y, game.sky.spawn.z);
       }
       checkSkyFoodPickups(game);
+      checkSkyMission(game);
       ui.setUnderwater(false);
     } else {
       game.environment.update(delta, game.camera);
@@ -879,6 +969,17 @@ function updatePortalTransition(game, delta) {
   }
 }
 
+function setAvatarMeshesVisible(game, visible) {
+  const avatar = game?.player?.avatar;
+  if (!avatar) return;
+  avatar.traverse((object) => {
+    if (object.isMesh) object.visible = visible;
+  });
+  avatar.visible = visible && game.player.cameraMode === 'third';
+  if (!visible) avatar.removeFromParent?.();
+  else if (!avatar.parent) game.scene.add(avatar);
+}
+
 function enterNether(game) {
   if (!game || game.dimension === 'nether') return;
   if (!game.nether) {
@@ -911,6 +1012,7 @@ function enterNether(game) {
   game.interaction.world = game.nether;
   game.player.setFlying(false);
   game.player.setCameraMode('first');
+  setAvatarMeshesVisible(game, false);
   game.player.teleport(game.nether.spawn.x, game.nether.spawn.y, game.nether.spawn.z);
   game.player.yaw = 0;
   game.interaction.hideTarget();
@@ -936,6 +1038,7 @@ function exitNether(game) {
   game.player.setSpawn(game.world.spawn);
   game.player.setFlying(false);
   game.player.setCameraMode('first');
+  setAvatarMeshesVisible(game, true);
   const back = game.overworldReturn;
   game.player.teleport(back.x, back.y, back.z);
   game.player.yaw = back.yaw;
@@ -980,11 +1083,13 @@ function enterSkyCity(game) {
   game.interaction.world = game.sky;
   game.player.setFlying(false);
   game.player.setCameraMode('first');
+  setAvatarMeshesVisible(game, false);
   game.player.teleport(game.sky.spawn.x, game.sky.spawn.y, game.sky.spawn.z);
   game.player.yaw = 0;
   game.interaction.hideTarget();
   document.body.dataset.dimension = 'sky';
   ui.setMinimapVisible(false);
+  startSkyMission(game);
   ui.toastMessage('☁️ 欢迎来到云上科技城！玻璃穹顶、霓虹桥和瀑布都在等你。', 'good', 4600);
   state.portalCooldown = 2.5;
   state.portalHintShown = false;
@@ -1015,6 +1120,7 @@ function exitSkyCity(game) {
   game.interaction.hideTarget();
   document.body.dataset.dimension = 'overworld';
   ui.setMinimapVisible(false);
+  ui.setSkyMission({ visible: false });
   ui.toastMessage('🌿 从云上科技城回到主世界啦。', 'good', 3600);
   state.portalCooldown = 2.5;
   state.portalHintShown = false;
@@ -1263,6 +1369,28 @@ function handlePointerLockError({ message }) {
   }
 }
 
+function returnToMainSpawn() {
+  const game = state.game;
+  if (!game) return;
+  if (game.dimension === 'nether') {
+    exitNether(game);
+    game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
+    game.player.yaw = 0;
+    state.portalCooldown = 3;
+  } else if (game.dimension === 'sky') {
+    exitSkyCity(game);
+    game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
+    game.player.yaw = 0;
+    state.portalCooldown = 3;
+  } else {
+    game.player.respawn();
+  }
+  game.interaction.hideTarget();
+  updateModeIndicator();
+  updateHUD(game);
+  ui.toastMessage('回到主世界出生点啦！', 'good', 2200);
+}
+
 function handleGlobalKeyDown(event) {
   if (event.code === 'Escape' && ui.isThemeOpen()) {
     ui.hideThemePicker();
@@ -1456,26 +1584,7 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyR') {
     if (event.repeat) return;
     if (state.paused) return;
-    const game = state.game;
-    if (game.dimension === 'nether') {
-      exitNether(game);
-      game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
-      game.player.yaw = 0;
-      state.portalCooldown = 3;
-      ui.toastMessage('回到主世界出生点啦！', 'good', 2200);
-    } else if (game.dimension === 'sky') {
-      exitSkyCity(game);
-      game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
-      game.player.yaw = 0;
-      state.portalCooldown = 3;
-      ui.toastMessage('回到主世界出生点啦！', 'good', 2200);
-    } else {
-      game.player.respawn();
-      ui.toastMessage('回到出生点啦！', 'good', 1800);
-    }
-    game.interaction.hideTarget();
-    updateModeIndicator();
-    updateHUD(game);
+    returnToMainSpawn();
     event.preventDefault();
     return;
   }
@@ -1885,6 +1994,58 @@ function collectSkyFood(blockId) {
   updateHUD(game);
 }
 
+
+function startSkyMission(game) {
+  if (!game?.sky) return;
+  if (state.skyGame.completed) {
+    ui.setSkyMission({ visible: true, title: '云上能量巡线 · 完成', detail: '中央控制台已点亮', complete: true });
+    return;
+  }
+  state.skyGame.active = true;
+  ui.setSkyMission({
+    visible: true,
+    title: state.skyGame.ready ? '云上能量巡线 · 去交付' : '云上能量巡线',
+    detail: state.skyGame.ready ? '核心已齐，回到中央控制台' : `${state.skyGame.cores} / 5 个能量核心`,
+  });
+  if (!state.skyGame.started) {
+    state.skyGame.started = true;
+    ui.toastMessage('⚡ 云上能量巡线开始：找到 5 个橙色能量核心，再回中央控制台交付。', 'info', 5200);
+  }
+}
+
+function checkSkyMission(game) {
+  if (!game?.sky || game.dimension !== 'sky' || state.skyGame.completed) return;
+  const player = game.player.position;
+  for (const core of game.sky.energyCores) {
+    if (game.world.getBlock(core.x, core.y, core.z) !== BLOCK_IDS.TECH_ORANGE) continue;
+    if (Math.hypot(player.x - core.x, player.z - core.z) > 3.5 || Math.abs(player.y - (core.y - 1)) > 3.5) continue;
+    game.world.setBlock(core.x, core.y, core.z, BLOCK_IDS.AIR);
+    state.skyGame.cores += 1;
+    ui.setSkyMission({
+      visible: true,
+      title: '云上能量巡线',
+      detail: `${state.skyGame.cores} / 5 个能量核心`,
+    });
+    ui.toastMessage(`⚡ 能量核心 ${state.skyGame.cores}/5 已收集`, 'good', 2200);
+  }
+  if (state.skyGame.cores >= 5 && !state.skyGame.ready) {
+    state.skyGame.ready = true;
+    game.world.setBlock(44, 14, 38, BLOCK_IDS.GOLD);
+    ui.setSkyMission({ visible: true, title: '云上能量巡线 · 去交付', detail: '回到中央控制台交付能量' });
+    ui.toastMessage('⚡ 五个核心都亮了！去中央控制台交付能量吧。', 'good', 4000);
+  }
+  if (state.skyGame.ready) {
+    if (Math.hypot(player.x - 44, player.z - 38) < 3.2 && Math.abs(player.y - 13) < 3) {
+      state.skyGame.completed = true;
+      state.skyGame.active = false;
+      game.world.setBlock(44, 14, 38, BLOCK_IDS.GOLD);
+      ui.setSkyMission({ visible: true, title: '云上能量巡线 · 完成', detail: '云上城的灯全部亮起', complete: true });
+      ui.toastMessage('🎉 云上能量巡线完成！整座科技美食城都亮起来了。', 'good', 6200);
+      audio.playSelect();
+    }
+  }
+}
+
 function checkSkyFoodPickups(game) {
   if (!game || game.dimension !== 'sky' || !game.sky?.foodSpots) return;
   for (const [key, spot] of Object.entries(game.sky.foodSpots)) {
@@ -1977,6 +2138,31 @@ function closeGallery() {
     !requested || document.pointerLockElement !== state.game.player.domElement,
     '点击画面锁定鼠标，移动鼠标看看四周',
   );
+}
+
+function downloadPhoto(photoId) {
+  const photo = gallery.list().find((entry) => entry.id === photoId);
+  if (!photo) {
+    ui.toastMessage('这张照片找不到了。', 'warn', 2200);
+    return;
+  }
+  try {
+    const link = document.createElement('a');
+    const stamp = new Date(photo.createdAt || Date.now());
+    const safeDate = Number.isNaN(stamp.getTime())
+      ? 'photo'
+      : `${stamp.getFullYear()}${String(stamp.getMonth() + 1).padStart(2, '0')}${String(stamp.getDate()).padStart(2, '0')}-${String(stamp.getHours()).padStart(2, '0')}${String(stamp.getMinutes()).padStart(2, '0')}${String(stamp.getSeconds()).padStart(2, '0')}`;
+    link.href = photo.dataUrl;
+    link.download = `meiwei-${photo.characterName || 'agent'}-${safeDate}.jpg`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    ui.toastMessage('照片已经开始下载啦！', 'good', 2400);
+    audio.playSelect();
+  } catch (error) {
+    ui.toastMessage('下载没有成功，可以试试换个浏览器。', 'warn', 2800);
+  }
 }
 
 function deletePhoto(photoId) {

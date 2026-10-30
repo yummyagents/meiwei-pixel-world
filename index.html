@@ -275,8 +275,13 @@
 
             <div id="mobile-game-tools" class="mobile-game-tools" aria-label="手机快捷功能">
               <button id="btn-mobile-map" class="mobile-game-tool" type="button" aria-label="打开世界地图" title="世界地图">🗺️</button>
+              <button id="btn-mobile-inventory" class="mobile-game-tool" type="button" aria-label="打开背包" title="背包">🎒</button>
+              <button id="btn-mobile-spawn" class="mobile-game-tool" type="button" aria-label="回到出生点" title="回出生点">🏠</button>
+              <button id="btn-mobile-photo" class="mobile-game-tool" type="button" aria-label="拍照" title="拍照">📸</button>
+              <button id="btn-mobile-gallery" class="mobile-game-tool" type="button" aria-label="打开作品集" title="作品集">🖼️</button>
               <button id="btn-mobile-fly" class="mobile-game-tool" type="button" aria-label="切换飞行" title="飞行">🕊️</button>
               <button id="btn-mobile-view" class="mobile-game-tool" type="button" aria-label="切换第一/第三视角" title="切换视角">👁️</button>
+              <button id="btn-mobile-pause" class="mobile-game-tool" type="button" aria-label="暂停游戏" title="暂停">⏸️</button>
             </div>
 
             <aside id="minimap-panel" class="minimap-panel is-hidden" aria-label="小地图">
@@ -289,7 +294,11 @@
 
         <div class="crosshair" aria-hidden="true"><span></span></div>
 
-        <div id="waypoint" class="waypoint is-hidden" aria-live="polite">
+        <div id="sky-mission" class="sky-mission is-hidden" aria-live="polite">
+      <span class="sky-mission-icon">⚡</span>
+      <div><strong id="sky-mission-title">云上能量巡线</strong><small id="sky-mission-detail">0 / 5</small></div>
+    </div>
+    <div id="waypoint" class="waypoint is-hidden" aria-live="polite">
           <span id="waypoint-arrow" class="waypoint-arrow" aria-hidden="true">↑</span>
           <span class="waypoint-copy"><b id="waypoint-label">洞穴入口</b><small id="waypoint-distance">18 格</small></span>
         </div>
@@ -420,7 +429,7 @@
           </li>
           <li>
             <span class="tutorial-icon">🕊️</span>
-            <span><strong>右上角小按钮</strong><small>地图、飞行和第一/第三视角</small></span>
+            <span><strong>右上角快捷工具</strong><small>地图、背包、出生点、拍照、作品集、飞行、视角和暂停</small></span>
           </li>
         </ul>
         <button id="btn-tutorial-go" class="pixel-button pixel-button-primary pixel-button-wide" type="button">

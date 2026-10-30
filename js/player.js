@@ -514,6 +514,7 @@ export class Player {
       this.camera.rotation.y = this.yaw;
       this.camera.rotation.z = 0;
       this._thirdDistance = THIRD_PERSON_DISTANCE;
+      if (this.avatar) this.avatar.visible = false;
       return;
     }
 

@@ -469,3 +469,49 @@ body[data-dimension='sky'] .game-color-wash {
     radial-gradient(ellipse at center, transparent 45%, rgba(80, 157, 193, 0.18) 100%),
     linear-gradient(180deg, rgba(255, 247, 195, 0.08), transparent 38%);
 }
+
+.sky-mission {
+  position: fixed;
+  top: 226px;
+  right: 20px;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 280px;
+  padding: 10px 13px;
+  border: 2px solid rgba(98, 247, 255, 0.55);
+  border-radius: 10px;
+  background: rgba(8, 21, 35, 0.82);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), inset 0 0 14px rgba(70, 235, 255, 0.1);
+  color: #e9fdff;
+}
+
+.sky-mission.is-hidden { display: none; }
+
+.sky-mission.is-complete {
+  border-color: rgba(255, 215, 94, 0.8);
+  background: rgba(45, 34, 10, 0.86);
+}
+
+.sky-mission-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 0 6px rgba(255, 174, 55, 0.8));
+}
+
+.sky-mission strong,
+.sky-mission small { display: block; }
+
+.sky-mission strong { font-size: 12px; }
+
+.sky-mission small {
+  margin-top: 3px;
+  color: #8defff;
+  font-size: 10px;
+}
+
+@media (max-width: 820px) {
+  .sky-mission { top: 188px; right: 8px; max-width: 230px; padding: 8px 10px; }
+  .sky-mission strong { font-size: 10px; }
+  .sky-mission small { font-size: 9px; }
+}

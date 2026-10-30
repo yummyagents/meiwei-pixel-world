@@ -88,6 +88,9 @@ export class GameUI {
     this.supportUnavailable = document.getElementById('support-unavailable');
     this.themeOverlay = document.getElementById('overlay-theme');
     this.themeGrid = document.getElementById('theme-grid');
+    this.skyMission = document.getElementById('sky-mission');
+    this.skyMissionTitle = document.getElementById('sky-mission-title');
+    this.skyMissionDetail = document.getElementById('sky-mission-detail');
     this.waypoint = document.getElementById('waypoint');
     this.waypointArrow = document.getElementById('waypoint-arrow');
     this.waypointLabel = document.getElementById('waypoint-label');
@@ -244,6 +247,11 @@ export class GameUI {
       this.callbacks.onGalleryClose?.();
     });
     this.galleryGrid?.addEventListener('click', (event) => {
+      const download = event.target.closest('.gallery-download');
+      if (download) {
+        this.callbacks.onDownloadPhoto?.(download.dataset.photoId);
+        return;
+      }
       const button = event.target.closest('.gallery-delete');
       if (!button) return;
       this.callbacks.onDeletePhoto?.(button.dataset.photoId);
@@ -768,14 +776,23 @@ export class GameUI {
       time.textContent = this._formatSaveTime(photo.createdAt);
       meta.append(title, time);
 
+      const actions = document.createElement('div');
+      actions.className = 'gallery-photo-actions';
+      const downloadButton = document.createElement('button');
+      downloadButton.type = 'button';
+      downloadButton.className = 'gallery-download';
+      downloadButton.dataset.photoId = photo.id;
+      downloadButton.textContent = '⬇ 下载';
+      downloadButton.setAttribute('aria-label', '下载这张照片');
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
       deleteButton.className = 'gallery-delete';
       deleteButton.dataset.photoId = photo.id;
       deleteButton.textContent = '删除';
       deleteButton.setAttribute('aria-label', '删除这张照片');
+      actions.append(downloadButton, deleteButton);
 
-      card.append(frame, meta, deleteButton);
+      card.append(frame, meta, actions);
       this.galleryGrid.appendChild(card);
     }
   }
@@ -910,6 +927,16 @@ export class GameUI {
       this.questTitle.textContent = state.allComplete ? '✨ 新手任务完成' : '🌱 新手任务';
     }
     this.questPanel?.classList.toggle('is-complete', state.allComplete);
+  }
+
+  setSkyMission(info) {
+    if (!this.skyMission) return;
+    const visible = Boolean(info && info.visible);
+    this.skyMission.classList.toggle('is-hidden', !visible);
+    this.skyMission.classList.toggle('is-complete', Boolean(info?.complete));
+    if (this.skyMissionTitle) this.skyMissionTitle.textContent = info?.title || '云上能量巡线';
+    if (this.skyMissionDetail) this.skyMissionDetail.textContent = info?.detail || '';
+    this.skyMission.setAttribute('aria-hidden', visible ? 'false' : 'true');
   }
 
   setWaypoint(info) {

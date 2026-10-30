@@ -49,6 +49,14 @@ export class SkyCityRealm {
     this.spawn = { x: 44.5, y: TOP + 1.02, z: 82.5 };
     this.returnPortal = { x: CX + 0.5, y: TOP + 1.02, z: 34.5 };
     this.foodSpots = FOOD_SPOTS;
+    this.energyCores = [
+      { key: 'west', x: 10, y: 15, z: 44 },
+      { key: 'east', x: 78, y: 16, z: 44 },
+      { key: 'north', x: 44, y: 15, z: 10 },
+      { key: 'south', x: 50, y: 13, z: 72 },
+      { key: 'center', x: 44, y: 13, z: 60 },
+    ];
+    this.delivery = { x: 44, y: 14, z: 38 };
     this._generate();
     this._buildAtlas();
     this._buildMesh();
@@ -273,6 +281,17 @@ export class SkyCityRealm {
       this._set(spot.x + 1, spot.y - 1, spot.z, B.TECH_CYAN);
     }
 
+    // 先搭好手工建筑，再把能量核心嵌进去，避免被建筑覆盖。
+    this._buildHandcraftedDetails();
+    for (const core of this.energyCores) {
+      this._set(core.x, core.y - 1, core.z, B.TECH_DARK);
+      this._set(core.x, core.y, core.z, B.TECH_ORANGE);
+    }
+    this._set(44, 13, 38, B.TECH_DARK);
+    this._set(44, 14, 38, B.TECH_CYAN);
+    this._set(43, 13, 38, B.TECH_WHITE);
+    this._set(45, 13, 38, B.TECH_WHITE);
+
     // 空中的体素云朵。
     const clouds = [[10, 3, 14], [70, 2, 16], [12, 5, 70], [70, 4, 72], [30, 6, 8], [58, 5, 80]];
     for (const [cx, cy, cz] of clouds) {
@@ -290,6 +309,99 @@ export class SkyCityRealm {
     for (const [x, z] of [[34, 72], [54, 72], [23, 44], [65, 44]]) {
       for (let y = 2; y <= 10; y += 1) this._set(x, y, z, B.WATER);
     }
+  }
+
+  _buildHandcraftedDetails() {
+    const B = BLOCK_IDS;
+    const top = TOP;
+    const stationTop = 15;
+    const cafeTop = 14;
+    const northTop = 14;
+    // 南侧入口的霓虹拱门。
+    for (const side of [-1, 1]) {
+      for (let y = top + 1; y <= top + 5; y += 1) this._set(44 + side * 4, y, 64, B.TECH_WHITE);
+      this._set(44 + side * 4, top + 6, 64, B.TECH_CYAN);
+    }
+    for (let x = 40; x <= 48; x += 1) this._set(x, top + 6, 64, x % 2 === 0 ? B.TECH_CYAN : B.TECH_MAGENTA);
+    for (let x = 41; x <= 47; x += 2) this._set(x, top + 7, 64, B.TECH_DARK);
+
+    // 东侧空中列车站：站台、顶棚、立柱、铁轨和长椅。
+    for (let x = 68; x <= 80; x += 1) {
+      for (let z = 51; z <= 58; z += 1) {
+        if (x === 68 || x === 80 || z === 51 || z === 58) this._set(x, stationTop + 1, z, B.TECH_WHITE);
+        else this._set(x, stationTop, z, B.TECH_DARK);
+      }
+    }
+    for (const x of [69, 73, 77, 80]) {
+      for (let y = stationTop + 1; y <= stationTop + 4; y += 1) this._set(x, y, 51, B.TECH_WHITE);
+      this._set(x, stationTop + 5, 51, B.TECH_CYAN);
+    }
+    for (let x = 68; x <= 80; x += 1) {
+      this._set(x, stationTop + 5, 55, B.TECH_WHITE);
+      this._set(x, stationTop, 56, x % 3 === 0 ? B.COPPER : B.TECH_DARK);
+    }
+    for (const x of [70, 74, 78]) {
+      this._set(x, stationTop + 1, 55, B.DARK_PLANKS);
+      this._set(x, stationTop + 1, 54, B.NEON);
+    }
+    // 站牌和广告屏。
+    this._set(70, stationTop + 3, 57, B.TECH_CYAN);
+    this._set(76, stationTop + 3, 57, B.TECH_MAGENTA);
+    this._set(74, stationTop + 4, 57, B.TECH_ORANGE);
+
+    // 西侧咖啡露台：桌、椅、遮阳伞和花盆。
+    for (const [x, z] of [[8, 38], [12, 38], [10, 40], [10, 43]]) {
+      this._set(x, cafeTop, z, B.TECH_WHITE);
+      this._set(x, cafeTop + 1, z, B.TECH_DARK);
+      this._set(x, cafeTop + 2, z, B.COPPER);
+      this._set(x, cafeTop + 3, z, B.TECH_ORANGE);
+      this._set(x + 2, cafeTop, z, B.DARK_PLANKS);
+      this._set(x + 2, cafeTop + 1, z, B.DARK_PLANKS);
+      this._set(x + 1, cafeTop + 2, z, B.TECH_ORANGE);
+    }
+    for (const [x, z] of [[6, 36], [14, 36], [6, 44], [16, 44]]) {
+      this._set(x, cafeTop + 1, z, B.TECH_WHITE);
+      this._set(x, cafeTop + 2, z, B.FLOWER);
+      this._set(x + 1, cafeTop + 2, z, B.LEAVES);
+    }
+
+    // 中央广场花坛、长椅、路灯和全息广告柱。
+    for (let i = 0; i < 12; i += 1) {
+      const a = (i / 12) * Math.PI * 2;
+      const x = Math.round(44 + Math.cos(a) * 15.5);
+      const z = Math.round(44 + Math.sin(a) * 15.5);
+      this._set(x, top + 1, z, B.TECH_WHITE);
+      this._set(x, top + 2, z, i % 2 === 0 ? B.FLOWER : B.LEAVES);
+    }
+    for (const [x, z] of [[44, 66], [44, 22], [28, 44], [60, 44], [32, 60], [56, 28]]) {
+      this._set(x, top + 1, z, B.TECH_WHITE);
+      this._set(x, top + 2, z, B.TECH_WHITE);
+      this._set(x, top + 3, z, B.LANTERN);
+      this._set(x + 1, top + 1, z, B.TECH_CYAN);
+    }
+    // 连接桥上的灯带和护栏。
+    for (let x = 24; x <= 64; x += 4) {
+      this._set(x, top + 1, 44, B.TECH_CYAN);
+      this._set(x, top + 1, 45, B.TECH_DARK);
+    }
+    for (let z = 24; z <= 64; z += 4) {
+      this._set(44, top + 1, z, B.TECH_MAGENTA);
+      this._set(45, top + 1, z, B.TECH_DARK);
+    }
+
+    // 瞭望台：北侧小塔和望远镜。
+    for (let x = 42; x <= 46; x += 1) {
+      for (let z = 9; z <= 13; z += 1) {
+        this._set(x, northTop + 1, z, B.TECH_WHITE);
+      }
+    }
+    for (let y = northTop + 2; y <= northTop + 5; y += 1) {
+      this._set(44, y, 11, B.TECH_WHITE);
+      this._set(44, y, 12, B.TECH_DARK);
+    }
+    this._set(44, northTop + 6, 11, B.TECH_CYAN);
+    this._set(43, northTop + 2, 11, B.COPPER);
+    this._set(45, northTop + 2, 11, B.COPPER);
   }
 
   _buildAtlas() {
