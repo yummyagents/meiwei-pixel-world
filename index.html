@@ -14,6 +14,7 @@
     <title>美味特工队：像素方块世界</title>
     <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
     <link rel="stylesheet" href="./css/main.css" />
+    <link rel="stylesheet" href="./css/library.css" />
     <script type="importmap">
       {
         "imports": {
@@ -61,6 +62,10 @@
               <button id="btn-home-controls" class="pixel-button pixel-button-light" type="button">
                 <span aria-hidden="true">🎮</span>
                 <span>操作说明</span>
+              </button>
+              <button id="btn-multiplayer" class="pixel-button pixel-button-light" type="button">
+                <span aria-hidden="true">🌐</span>
+                <span>和好朋友联机</span>
               </button>
             </div>
 
@@ -256,6 +261,11 @@
                 </li>
               </ul>
             </aside>
+
+            <aside id="library-quest-chip" class="library-quest-chip is-hidden" role="button" tabindex="0" aria-label="打开溪谷书屋三页书任务" aria-live="polite">
+              <span class="library-quest-icon" aria-hidden="true">📖</span>
+              <span><strong>溪谷书屋</strong><small id="library-quest-detail">寻找散落的三页故事</small></span>
+            </aside>
           </div>
 
           <div class="hud-right">
@@ -268,6 +278,10 @@
             <div id="mode-indicator" class="status-pill mode-indicator is-hidden" aria-live="polite">
               <span id="mode-indicator-icon" aria-hidden="true">🕊️</span><b id="mode-indicator-text">飞行中</b>
             </div>
+
+            <button id="btn-journal" class="status-pill journal-pill" type="button" aria-label="打开探索手账" title="探索手账">
+              <span aria-hidden="true">📖</span><b>手账 <i id="journal-count">0</i></b>
+            </button>
 
             <button id="btn-theme" class="status-pill theme-pill" type="button" aria-label="切换材质光影风格" title="材质光影">
               <span aria-hidden="true">🎨</span><b>光影</b>
@@ -298,6 +312,18 @@
       <span class="sky-mission-icon">⚡</span>
       <div><strong id="sky-mission-title">云上能量巡线</strong><small id="sky-mission-detail">0 / 5</small></div>
     </div>
+    <div id="mp-panel" class="mp-panel is-hidden" aria-label="多人联机">
+      <div class="mp-panel-head"><b id="mp-room-label">房间 ----</b><span id="mp-player-count">0 人</span></div>
+      <div id="mp-player-list" class="mp-player-list"></div>
+      <div id="mp-messages" class="mp-messages" aria-live="polite"></div>
+      <div class="mp-quick">
+        <button type="button" data-mp-chat="你好！">你好</button>
+        <button type="button" data-mp-chat="一起建！">一起建</button>
+        <button type="button" data-mp-chat="来这边！">来这边</button>
+        <button type="button" data-mp-chat="👍">👍</button>
+      </div>
+    </div>
+
     <div id="waypoint" class="waypoint is-hidden" aria-live="polite">
           <span id="waypoint-arrow" class="waypoint-arrow" aria-hidden="true">↑</span>
           <span class="waypoint-copy"><b id="waypoint-label">洞穴入口</b><small id="waypoint-distance">18 格</small></span>
@@ -437,6 +463,65 @@
         </button>
         <p class="modal-note desktop-tutorial-note">鼠标没有锁定也没关系，按住左键拖动也能转动视角。</p>
         <p class="modal-note mobile-tutorial-note">摇杆、拖动视角和右下角按钮都能直接用手指操作。</p>
+      </div>
+    </div>
+
+    <!-- ============================ 多人联机 ============================ -->
+    <div id="overlay-multiplayer" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="mp-title">
+      <div class="modal-card mp-card">
+        <button id="btn-mp-close" class="modal-close" type="button" aria-label="关闭联机">×</button>
+        <div class="eyebrow-badge"><span>🌐</span> 一起玩</div>
+        <h2 id="mp-title">和好朋友联机</h2>
+        <p class="mp-lead">创建私密房间，把房间码发给朋友。最多 6 位小特工一起建造。</p>
+        <label class="mp-label">你的昵称
+          <input id="mp-name" class="mp-input" maxlength="14" placeholder="小特工" autocomplete="nickname" />
+        </label>
+        <label class="mp-label">联机服务器
+          <input id="mp-server" class="mp-input" placeholder="例如 https://你的服务.com" autocomplete="url" />
+        </label>
+        <div class="mp-room-row">
+          <label class="mp-label">房间码
+            <input id="mp-room" class="mp-input mp-room-input" maxlength="8" placeholder="6 位房间码" autocomplete="off" />
+          </label>
+          <button id="btn-mp-join" class="pixel-button pixel-button-primary" type="button">加入房间</button>
+        </div>
+        <div class="mp-or"><span>或者</span></div>
+        <button id="btn-mp-create" class="pixel-button pixel-button-primary pixel-button-wide" type="button">✨ 创建新房间</button>
+        <p id="mp-status" class="mp-status" aria-live="polite">创建房间后会得到一个房间码。</p>
+        <p class="modal-note">联机使用私密房间，不提供公开大厅；聊天只有快捷短语。</p>
+      </div>
+    </div>
+
+    <!-- ============================ 探索手账 ============================ -->
+    <div id="overlay-journal" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="journal-title">
+      <div class="modal-card journal-card">
+        <button id="btn-journal-close" class="modal-close" type="button" aria-label="关闭手账">×</button>
+        <div class="eyebrow-badge eyebrow-badge-warm"><span>📖</span> 探索手账</div>
+        <h2 id="journal-title">我的方块世界记录</h2>
+        <p class="journal-lead">走过的路、读过的书、发现的小东西，都会留在这里。</p>
+        <div id="journal-list" class="journal-list"></div>
+        <p class="modal-note">手账只记录游戏里的探索，不会上传任何信息。</p>
+      </div>
+    </div>
+
+    <!-- ============================ 三页书 ============================ -->
+    <div id="overlay-library" class="overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="library-title">
+      <div class="modal-card library-card">
+        <button id="btn-library-close" class="modal-close" type="button" aria-label="收好书页">×</button>
+        <div class="eyebrow-badge"><span>📖</span> 溪谷书屋</div>
+        <h2 id="library-title">溪水去哪了？</h2>
+        <p class="library-lead" id="library-lead">三页故事被溪水冲散了。点一点书页，按故事发生的先后顺序排好。</p>
+        <div id="library-pages" class="library-pages"></div>
+        <div class="library-order">
+          <span>我的顺序：</span>
+          <b id="library-order-text">还没有选</b>
+        </div>
+        <p id="library-hint" class="library-hint" aria-live="polite">先读一读每页，再决定哪一页是开头。</p>
+        <div class="library-actions">
+          <button id="btn-library-reset" class="pixel-button pixel-button-light" type="button">重新排</button>
+          <button id="btn-library-close-2" class="pixel-button pixel-button-primary" type="button">先收好</button>
+        </div>
+        <p class="modal-note">排错也没关系，可以随时再试。</p>
       </div>
     </div>
 
@@ -613,6 +698,7 @@
             <span><i class="map-pin" style="--pin:#d79bff"></i>紫水晶洞</span>
             <span><i class="map-pin" style="--pin:#d38bff"></i>神秘传送门</span>
             <span><i class="map-pin" style="--pin:#62f7ff"></i>云上科技城</span>
+            <span><i class="map-pin" style="--pin:#a8e6a3"></i>溪谷书屋</span>
             <span><i class="map-triangle" style="--pin:#e8eef3"></i>雪山</span>
             <span><i class="map-pin" style="--pin:#ffffff"></i>风车</span>
           </div>

@@ -151,6 +151,14 @@ export class WorldMap {
         z: this.world.skyPortal.z,
       });
     }
+    if (this.world.valleyLibrary) {
+      points.push({
+        icon: '📚',
+        label: '溪谷书屋',
+        x: this.world.valleyLibrary.x,
+        z: this.world.valleyLibrary.z,
+      });
+    }
     if (this.world.techCity) {
       points.push({
         icon: '⚙',
@@ -244,6 +252,9 @@ export class WorldMap {
     if (this.world.skyPortal) {
       addMarker(this.world.skyPortal.x, this.world.skyPortal.z, '#62f7ff', 7);
     }
+    if (this.world.valleyLibrary) {
+      addMarker(this.world.valleyLibrary.x, this.world.valleyLibrary.z, '#a8e6a3', 8);
+    }
     for (const mine of this.world.mineshafts || []) {
       const point = mine.entrance || mine;
       addMarker(point.x, point.z, '#c79a66', 5);
@@ -290,6 +301,9 @@ export class WorldMap {
     }
     if (this.world.skyPortal) {
       labelMarker(this.world.skyPortal.x, this.world.skyPortal.z, '云上科技城', '#62f7ff', 12, 18);
+    }
+    if (this.world.valleyLibrary) {
+      labelMarker(this.world.valleyLibrary.x, this.world.valleyLibrary.z, '溪谷书屋', '#a8e6a3', -12, -20);
     }
     for (const mine of this.world.mineshafts || []) {
       const point = mine.entrance || mine;

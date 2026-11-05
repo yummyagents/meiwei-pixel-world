@@ -210,6 +210,8 @@ export class World {
     this.techCity = this._planTechCity(this.waterfallSpot);
     this.portalSpot = this.findPortalSpot(this.spawn);
     this.ruinedPortal = this.portalSpot ? this._planRuinedPortal(this.portalSpot) : null;
+    this.librarySpot = this.findValleyLibrarySpot(this.spawn);
+    this.valleyLibrary = this.librarySpot ? this._planValleyLibrary(this.librarySpot) : null;
 
     this.atlasCanvas = createBlockAtlasCanvas(visualTheme?.id);
     this.atlasTexture = new THREE.CanvasTexture(this.atlasCanvas);
@@ -1121,6 +1123,460 @@ export class World {
     for (let dx = 3; dx <= 4; dx += 1) put(cx + dx, baseY + 1, cz - 1, BLOCK_IDS.GOLD);
     this.exclusionZones.push({ x: cx + 0.5, z: cz + 0.5, radius: 9 });
     return { x: cx + 0.5, z: cz + 0.5, baseY, portalZ: cz + 0.5 };
+  }
+
+
+  findValleyLibrarySpot(spawn) {
+    const baseX = Math.round(spawn.x);
+    const baseZ = Math.round(spawn.z);
+    let fallback = null;
+    for (let radius = 30; radius <= 82; radius += 2) {
+      for (let i = 0; i < 56; i += 1) {
+        const angle = (i / 56) * Math.PI * 2;
+        const x = Math.round(baseX + Math.cos(angle) * radius);
+        const z = Math.round(baseZ + Math.sin(angle) * radius);
+        const biome = this.biomeAt(x, z);
+        if (biome !== 'plains' && biome !== 'cherry' && biome !== 'jungle') continue;
+        if (this._isExcluded(x, z)) continue;
+        let blocked = false;
+        for (let ox = -20; ox <= 20 && !blocked; ox += 5) {
+          for (let oz = -18; oz <= 18; oz += 5) {
+            if (this._isExcluded(x + ox, z + oz)) { blocked = true; break; }
+          }
+        }
+        if (blocked) continue;
+        const height = this.heightAt(x, z);
+        if (height < 10 || height > 18) continue;
+        let flat = true;
+        for (let ox = -4; ox <= 4 && flat; ox += 4) {
+          for (let oz = -4; oz <= 4; oz += 4) {
+            if (Math.abs(this.heightAt(x + ox, z + oz) - height) > 4) { flat = false; break; }
+          }
+        }
+        if (!flat) continue;
+        const spot = { x: x + 0.5, z: z + 0.5, groundY: Math.min(19, height + 1) };
+        if (!fallback) fallback = spot;
+        // 优先靠近有樱花/丛林层次的地方，营造溪谷感。
+        if (biome === 'cherry' || biome === 'jungle') return spot;
+      }
+    }
+    return fallback;
+  }
+
+  _planValleyLibrary(spot) {
+    const B = BLOCK_IDS;
+    const cx = Math.floor(spot.x);
+    const cz = Math.floor(spot.z);
+    const g = spot.groundY;
+    const waterY = g;
+    const lowerY = g + 1;
+    const mainY = g + 5;
+    const upperY = g + 10;
+    const topY = g + 14;
+    const roofY = g + 18;
+    const put = (x, y, z, id) => this._queueStructureBlock(x, y, z, id);
+    const air = B.AIR;
+    const stone = B.STONE_BRICKS;
+    const grass = B.GRASS;
+    const moss = B.MOSSY_STONE;
+    const dark = B.DARK_PLANKS;
+    const wood = B.WOOD;
+    const plank = B.PLANKS;
+    const glass = B.GLASS;
+    const roof = B.ROOF;
+    const shelf = B.BOOKSHELF;
+    const lantern = B.LANTERN;
+    const water = B.WATER;
+    const leaves = B.CHERRY_LEAVES;
+    const vine = B.VINE;
+    const flower = B.FLOWER;
+    const log = B.JUNGLE_WOOD;
+    const root = B.CHERRY_LOG;
+    const cherryLog = B.CHERRY_LOG;
+
+    // 清理建筑体量，向下补出坚实的溪谷地基。
+    for (let x = cx - 20; x <= cx + 20; x += 1) {
+      for (let z = cz - 17; z <= cz + 17; z += 1) {
+        const h = this.heightAt(x, z);
+        for (let y = g - 3; y <= g + 23; y += 1) {
+          if (y > g) put(x, y, z, air);
+        }
+        for (let y = Math.min(h, g) + 1; y < g; y += 1) put(x, y, z, stone);
+        put(x, Math.max(h, g), z, (x + z) % 7 === 0 ? moss : stone);
+      }
+    }
+
+    // 溪道：横穿建筑下方，并向东西两侧延伸。
+    for (let x = cx - 22; x <= cx + 22; x += 1) {
+      for (let z = cz - 2; z <= cz + 2; z += 1) {
+        put(x, g - 2, z, (x + z) % 5 === 0 ? moss : stone);
+        put(x, g - 1, z, air);
+        put(x, g, z, water);
+        if (Math.abs(z - cz) === 2) {
+          put(x, g + 1, z, (x % 6 === 0) ? moss : stone);
+        }
+      }
+    }
+    // 上游泉眼和下游水潭。
+    for (let x = cx - 22; x <= cx - 16; x += 1) {
+      for (let z = cz - 3; z <= cz + 3; z += 1) {
+        if (Math.abs(z - cz) <= 2) put(x, g + 1, z, water);
+        put(x, g + 2, z, stone);
+      }
+    }
+    for (let x = cx - 19; x <= cx - 17; x += 1) {
+      for (let z = cz - 2; z <= cz + 2; z += 1) {
+        for (let y = g + 1; y <= g + 5; y += 1) put(x, y, z, water);
+      }
+    }
+    for (let x = cx + 18; x <= cx + 23; x += 1) {
+      for (let z = cz - 4; z <= cz + 4; z += 1) {
+        if (Math.hypot(x - (cx + 20), z - cz) <= 4) put(x, g, z, water);
+      }
+    }
+
+    // 北侧崖壁和嵌壁基础。
+    for (let x = cx - 20; x <= cx + 20; x += 1) {
+      for (let z = cz - 15; z <= cz - 10; z += 1) {
+        for (let y = g; y <= g + 15; y += 1) {
+          put(x, y, z, (x + y + z) % 9 === 0 ? moss : stone);
+        }
+      }
+    }
+    for (let x = cx - 17; x <= cx + 17; x += 1) {
+      for (let y = g; y <= g + 2; y += 1) {
+        put(x, y, cz - 10, stone);
+      }
+    }
+
+    // 主阅读厅：石基、木梁、玻璃南立面。
+    for (let x = cx - 14; x <= cx + 14; x += 1) {
+      for (let z = cz - 9; z <= cz + 4; z += 1) {
+        put(x, mainY, z, (x + z) % 11 === 0 ? moss : stone);
+        for (let y = mainY + 1; y <= mainY + 4; y += 1) put(x, y, z, air);
+        put(x, mainY + 5, z, air);
+      }
+    }
+    // 书架背墙。
+    for (let x = cx - 12; x <= cx + 12; x += 1) {
+      for (let y = mainY + 1; y <= mainY + 4; y += 1) {
+        put(x, y, cz - 8, (y === mainY + 3 || y === mainY + 1) ? shelf : plank);
+      }
+    }
+    // 大厅南面玻璃墙和框。
+    for (let x = cx - 12; x <= cx + 12; x += 2) {
+      for (let y = mainY + 1; y <= mainY + 4; y += 1) put(x, y, cz + 4, glass);
+    }
+    for (let x = cx - 13; x <= cx + 13; x += 1) {
+      put(x, mainY + 5, cz + 4, wood);
+      if (x % 4 === 0) put(x, mainY + 1, cz + 4, wood);
+    }
+    // 玻璃地板观察溪水。
+    for (let x = cx - 7; x <= cx + 7; x += 1) {
+      for (let z = cz - 1; z <= cz + 1; z += 1) put(x, mainY, z, glass);
+    }
+    // 内部长桌、椅子、书堆和暖灯。
+    for (let x = cx - 4; x <= cx + 4; x += 1) {
+      put(x, mainY + 1, cz - 1, wood);
+      put(x, mainY + 2, cz - 1, plank);
+      if (x === cx || x === cx + 4) put(x, mainY + 2, cz + 1, dark);
+    }
+    for (const [x, z] of [[cx - 6, cz - 1], [cx + 6, cz - 1], [cx - 6, cz + 2], [cx + 6, cz + 2]]) {
+      put(x, mainY + 1, z, dark);
+      put(x, mainY + 2, z, wood);
+    }
+    put(cx - 9, mainY + 3, cz - 7, lantern);
+    put(cx + 9, mainY + 3, cz - 7, lantern);
+    put(cx - 8, mainY + 3, cz + 3, lantern);
+    put(cx + 8, mainY + 3, cz + 3, lantern);
+    // 书堆/阅读桌。
+    for (const [x, z, id] of [[cx - 2, cz + 2, shelf], [cx + 2, cz + 2, shelf], [cx + 1, cz - 2, flower]]) {
+      put(x, mainY + 2, z, id);
+    }
+
+    // 下层溪畔入口平台，横跨溪水。
+    for (let x = cx - 9; x <= cx + 9; x += 1) {
+      for (let z = cz + 5; z <= cz + 10; z += 1) put(x, lowerY, z, (x + z) % 8 === 0 ? moss : plank);
+    }
+    for (const x of [cx - 9, cx + 9]) {
+      for (let z = cz + 5; z <= cz + 10; z += 1) {
+        put(x, lowerY + 1, z, dark);
+        put(x, lowerY + 2, z, (z % 2 === 0) ? dark : air);
+      }
+    }
+    // 入口台阶。
+    for (let i = 0; i < 4; i += 1) {
+      for (let x = cx - 2; x <= cx + 2; x += 1) put(x, lowerY + i, cz + 10 + i, stone);
+    }
+
+    // 上层玻璃书房。
+    for (let x = cx - 10; x <= cx + 10; x += 1) {
+      for (let z = cz - 7; z <= cz + 1; z += 1) {
+        put(x, upperY, z, plank);
+        for (let y = upperY + 1; y <= upperY + 3; y += 1) put(x, y, z, air);
+        put(x, upperY + 4, z, air);
+      }
+    }
+    for (let x = cx - 9; x <= cx + 9; x += 1) {
+      put(x, upperY + 1, cz + 1, (x % 3 === 0) ? wood : glass);
+      put(x, upperY + 2, cz + 1, glass);
+      put(x, upperY + 3, cz + 1, glass);
+    }
+    for (const x of [cx - 10, cx + 10]) {
+      for (let z = cz - 7; z <= cz + 1; z += 1) {
+        put(x, upperY + 1, z, (z % 3 === 0) ? wood : glass);
+        put(x, upperY + 2, z, glass);
+      }
+    }
+    // 上层书桌和星图。
+    put(cx, upperY + 1, cz - 3, wood);
+    put(cx, upperY + 2, cz - 3, plank);
+    put(cx + 2, upperY + 2, cz - 3, lantern);
+    put(cx - 3, upperY + 1, cz - 5, shelf);
+
+    // 顶层玻璃小书房。
+    for (let x = cx - 7; x <= cx + 7; x += 1) {
+      for (let z = cz - 6; z <= cz; z += 1) {
+        put(x, topY, z, plank);
+        for (let y = topY + 1; y <= topY + 2; y += 1) put(x, y, z, air);
+      }
+    }
+    for (let x = cx - 6; x <= cx + 6; x += 1) {
+      put(x, topY + 1, cz, (x % 3 === 0) ? wood : glass);
+      put(x, topY + 2, cz, glass);
+    }
+    for (const x of [cx - 7, cx + 7]) {
+      for (let z = cz - 6; z <= cz; z += 1) put(x, topY + 1, z, glass);
+    }
+    // 顶层玻璃书房的腰线和木柱：把屋顶真正接在墙体上。
+    for (let y = topY + 3; y <= topY + 4; y += 1) {
+      for (let x = cx - 7; x <= cx + 7; x += 1) {
+        if (x === cx - 7 || x === cx + 7 || x % 4 === 0) put(x, y, cz - 6, (y === topY + 3 ? wood : glass));
+        put(x, y, cz, (x % 3 === 0) ? wood : glass);
+      }
+      for (let z = cz - 6; z <= cz; z += 1) {
+        if (z % 3 === 0) { put(cx - 7, y, z, wood); put(cx + 7, y, z, wood); }
+        else { put(cx - 7, y, z, glass); put(cx + 7, y, z, glass); }
+      }
+    }
+    for (const [x, z] of [[cx - 7, cz - 6], [cx + 7, cz - 6], [cx - 7, cz], [cx + 7, cz]]) {
+      for (let y = topY; y <= topY + 6; y += 1) put(x, y, z, dark);
+    }
+
+    // 主厅悬挑南平台与支撑梁。
+    for (let x = cx - 10; x <= cx + 10; x += 1) {
+      for (let z = cz + 5; z <= cz + 8; z += 1) put(x, mainY, z, plank);
+    }
+    for (const x of [cx - 9, cx - 4, cx + 4, cx + 9]) {
+      for (let z = cz + 4; z <= cz + 8; z += 1) {
+        put(x, mainY - 1, z, dark);
+        if (z === cz + 7) {
+          for (let y = lowerY; y < mainY - 1; y += 1) put(x, y, z, log);
+        }
+      }
+      put(x, mainY - 2, cz + 5, dark);
+    }
+    // 斜撑（阶梯式木块）。
+    for (const x of [cx - 9, cx + 9]) {
+      for (let i = 0; i < 4; i += 1) put(x, lowerY + i, cz + 8 - i, dark);
+    }
+    // 主厅南侧门廊屋顶，避免压住上面两层玻璃书房。
+    for (let x = cx - 14; x <= cx + 14; x += 1) {
+      put(x, mainY + 6, cz + 5, roof);
+      put(x, mainY + 7, cz + 5, roof);
+    }
+    for (const x of [cx - 10, cx + 10]) {
+      for (let y = mainY + 1; y <= mainY + 5; y += 1) put(x, y, cz + 8, dark);
+    }
+    for (const x of [cx - 9, cx - 3, cx + 3, cx + 9]) {
+      for (let y = lowerY; y <= mainY + 5; y += 1) put(x, y, cz + 5, dark);
+    }
+    // 顶层大屋顶、挑檐和屋脊。
+    for (let x = cx - 13; x <= cx + 13; x += 1) {
+      for (let z = cz - 9; z <= cz + 4; z += 1) {
+        const ridge = Math.abs(z - (cz - 2)) <= 1;
+        put(x, topY + (ridge ? 6 : 5), z, roof);
+      }
+    }
+    for (let x = cx - 14; x <= cx + 14; x += 1) {
+      put(x, topY + 5, cz + 5, roof);
+      put(x, topY + 5, cz - 10, roof);
+    }
+    // 顶层屋顶杜鹃花箱、垂藤、烟囱和脊饰。
+    for (let x = cx - 11; x <= cx + 11; x += 1) {
+      if (x % 3 !== 0) continue;
+      for (let z = cz - 5; z <= cz + 3; z += 4) {
+        put(x, topY + 7, z, dark);
+        put(x, topY + 8, z, (x + z) % 2 === 0 ? leaves : B.AZALEA_LEAVES);
+        put(x, topY + 9, z, (x + z) % 3 === 0 ? flower : leaves);
+        put(x, topY + 6, z, vine);
+      }
+    }
+    for (const x of [cx - 5, cx + 5]) for (let z = cz - 7; z <= cz - 5; z += 1) put(x, topY + 7, z, stone);
+    for (let y = topY + 7; y <= topY + 10; y += 1) put(cx + 3, y, cz - 5, stone);
+    for (let y = topY + 6; y <= topY + 8; y += 1) put(cx - 8, y, cz - 8, vine);
+    // 上层到顶层的窄楼梯。
+    for (let i = 0; i < 4; i += 1) {
+      for (let x = cx + 8; x <= cx + 10; x += 1) put(x, upperY + i, cz - 6 + i, dark);
+    }
+
+    // 崖壁细节：竖向木撑、嵌入岩壁的窗洞、苔藓和垂藤。
+    for (let x = cx - 16; x <= cx + 16; x += 4) {
+      if (x > cx - 10 && x < cx + 10) continue;
+      for (let y = mainY; y <= topY + 3; y += 1) put(x, y, cz - 10, dark);
+      put(x, mainY + 2, cz - 9, lantern);
+      put(x, topY + 1, cz - 10, vine);
+    }
+    for (const x of [cx - 12, cx + 12]) {
+      for (let y = mainY + 1; y <= mainY + 3; y += 1) {
+        put(x, y, cz - 10, glass);
+      }
+    }
+    for (let x = cx - 18; x <= cx - 14; x += 1) {
+      for (let y = g; y <= g + 5; y += 1) put(x, y, cz - 10, (y % 3 === 0) ? moss : stone);
+    }
+    // 主厅栏杆上的花箱。
+    for (let x = cx - 8; x <= cx + 8; x += 4) {
+      put(x, mainY + 2, cz + 8, dark);
+      put(x, mainY + 3, cz + 8, (x % 8 === 0) ? flower : leaves);
+    }
+    // 泉眼石拱和灯笼。
+    for (const z of [cz - 3, cz + 3]) {
+      for (let y = g + 1; y <= g + 4; y += 1) put(cx - 20, y, z, stone);
+    }
+    for (let z = cz - 3; z <= cz + 3; z += 1) put(cx - 20, g + 5, z, stone);
+    put(cx - 21, g + 4, cz, lantern);
+
+    // 树根从崖壁穿进楼体，藤蔓从缝隙垂下。
+    for (const [x, z] of [[cx - 11, cz - 8], [cx + 11, cz - 8], [cx - 7, cz - 9], [cx + 7, cz - 9]]) {
+      for (let y = mainY + 1; y <= mainY + 5; y += 1) put(x, y, z, root);
+      for (let i = 0; i < 3; i += 1) put(x + (i % 2 ? 1 : -1), mainY + 2 + i, z - 1, root);
+    }
+    for (const [x, z] of [[cx - 12, cz + 4], [cx + 12, cz + 4], [cx - 4, cz - 9], [cx + 4, cz - 9]]) {
+      for (let y = mainY + 1; y <= mainY + 4; y += 1) put(x, y, z, vine);
+    }
+
+    // 侧楼梯：下层到主厅，主厅到上层。
+    for (let i = 0; i < 5; i += 1) {
+      for (let x = cx + 10; x <= cx + 12; x += 1) put(x, lowerY + i, cz + 6 - i, dark);
+    }
+    for (let i = 0; i < 5; i += 1) {
+      for (let x = cx - 12; x <= cx - 10; x += 1) put(x, mainY + i, cz - 1 - i, dark);
+    }
+
+    // 入口石阶和周围踏步石。
+    for (let i = 0; i < 4; i += 1) {
+      for (let x = cx - 3; x <= cx + 3; x += 1) put(x, lowerY - i, cz + 12 + i, (i % 2) ? moss : stone);
+    }
+    for (const [x, z] of [[cx - 15, cz + 10], [cx - 17, cz + 12], [cx + 15, cz + 11], [cx + 17, cz + 13]]) {
+      put(x, this.heightAt(x, z), z, moss);
+    }
+
+    // 周边树木和垂藤。
+    for (const [x, z, h] of [[cx - 19, cz - 3, 7], [cx + 20, cz - 2, 8], [cx - 20, cz - 13, 6], [cx + 20, cz - 12, 7]]) {
+      const ground = this.heightAt(x, z);
+      for (let y = ground + 1; y <= ground + h; y += 1) put(x, y, z, cherryLog);
+      for (let ox = -3; ox <= 3; ox += 1) for (let oz = -3; oz <= 3; oz += 1) {
+        if (Math.abs(ox) + Math.abs(oz) > 4) continue;
+        put(x + ox, ground + h + 1, z + oz, leaves);
+        if ((ox + oz) % 3 === 0) put(x + ox, ground + h, z + oz, leaves);
+      }
+    }
+
+    // 先把前庭和两侧树冠清空，保住溪谷的完整视线。
+    for (let x = cx - 28; x <= cx + 28; x += 1) {
+      for (let z = cz + 10; z <= cz + 34; z += 1) {
+        for (let y = g + 1; y <= g + 28; y += 1) put(x, y, z, air);
+        put(x, g, z, (x + z) % 9 === 0 ? moss : grass);
+      }
+    }
+    // 先把前庭的树冠和斜坡清空，形成可从南侧看见书屋的山谷开口。
+    for (let x = cx - 26; x <= cx + 26; x += 1) {
+      for (let z = cz + 14; z <= cz + 32; z += 1) {
+        for (let y = g + 1; y <= g + 24; y += 1) put(x, y, z, air);
+        put(x, g, z, (x + z) % 9 === 0 ? moss : grass);
+      }
+    }
+    // 南侧山谷前庭：打开视野，做出水潭、石阶和灯笼小路。
+    for (let x = cx - 24; x <= cx + 24; x += 1) {
+      for (let z = cz + 16; z <= cz + 30; z += 1) {
+        for (let y = g + 1; y <= g + 16; y += 1) put(x, y, z, air);
+        put(x, g, z, (x + z) % 9 === 0 ? moss : grass);
+      }
+    }
+    // 从屋下溪流延伸出的前庭水潭。
+    for (let z = cz + 1; z <= cz + 18; z += 1) {
+      for (let x = cx - 5; x <= cx - 1; x += 1) {
+        put(x, g - 1, z, stone);
+        put(x, g, z, water);
+        if (x === cx - 5 || x === cx - 1) put(x, g + 1, z, (z % 4 === 0 ? moss : stone));
+      }
+    }
+    for (let x = cx - 9; x <= cx + 3; x += 1) {
+      for (let z = cz + 17; z <= cz + 23; z += 1) {
+        if (Math.hypot(x - (cx - 3), z - (cz + 20)) <= 5) put(x, g, z, water);
+        if (Math.hypot(x - (cx - 3), z - (cz + 20)) > 5 && Math.hypot(x - (cx - 3), z - (cz + 20)) <= 6.2) put(x, g, z, stone);
+      }
+    }
+    // 前庭石阶和东侧小路。
+    for (let z = cz + 16; z <= cz + 27; z += 1) {
+      for (let x = cx + 3; x <= cx + 8; x += 1) {
+        put(x, g, z, (x + z) % 5 === 0 ? moss : stone);
+        put(x, g + 1, z, air);
+      }
+      if (z % 4 === 0) {
+        put(cx + 3, g + 1, z, wood);
+        put(cx + 3, g + 2, z, lantern);
+      }
+    }
+    // 前庭两侧的石挡墙和垂藤。
+    for (const side of [-1, 1]) {
+      for (let z = cz + 16; z <= cz + 28; z += 1) {
+        put(cx + side * 17, g + 1, z, stone);
+        put(cx + side * 17, g + 2, z, (z % 5 === 0 ? vine : moss));
+      }
+    }
+    // 主厅和挑台的木/玻璃栏杆。
+    for (let x = cx - 10; x <= cx + 10; x += 2) {
+      put(x, mainY + 1, cz + 8, dark);
+      put(x, mainY + 2, cz + 8, (x % 4 === 0) ? glass : air);
+    }
+    for (let z = cz + 5; z <= cz + 8; z += 1) {
+      put(cx - 10, mainY + 1, z, dark);
+      put(cx + 10, mainY + 1, z, dark);
+    }
+    // 从东侧前庭小路登上溪畔木台的四级木阶。
+    for (let i = 0; i < 5; i += 1) {
+      for (let x = cx + 4; x <= cx + 8; x += 1) {
+        put(x, g + i, cz + 15 - i, i === 0 ? stone : dark);
+      }
+    }
+    // 前庭长凳和花盆。
+    for (const [x, z] of [[cx - 10, cz + 21], [cx + 10, cz + 22], [cx + 11, cz + 17]]) {
+      put(x, g + 1, z, dark);
+      put(x + 1, g + 1, z, dark);
+      put(x, g + 2, z, flower);
+    }
+
+    // 从南侧山坡开一条石阶小路，连到下层溪畔平台。
+    for (let z = cz + 10; z <= cz + 22; z += 1) {
+      const stepY = lowerY + Math.max(0, Math.floor((cz + 22 - z) / 4));
+      for (let x = cx - 2; x <= cx + 2; x += 1) {
+        const h = this.heightAt(x, z);
+        for (let y = Math.min(h, stepY) + 1; y <= stepY; y += 1) put(x, y, z, (y % 2 === 0) ? moss : stone);
+        put(x, stepY + 1, z, air);
+      }
+      put(cx - 3, stepY + 1, z, dark);
+      put(cx + 3, stepY + 1, z, dark);
+    }
+    for (let x = cx - 3; x <= cx + 3; x += 1) {
+      for (let z = cz + 22; z <= cz + 24; z += 1) put(x, lowerY, z, moss);
+    }
+    this.exclusionZones.push({ x: cx + 0.5, z: cz + 0.5, radius: 23 });
+    return {
+      x: cx + 0.5, z: cz + 0.5, groundY: g, waterY,
+      levels: { lowerY, mainY, upperY, topY, roofY },
+    };
   }
 
   _planVillage(spot) {

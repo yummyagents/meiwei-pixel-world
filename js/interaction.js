@@ -26,6 +26,7 @@ export class InteractionController {
     onBlockPlaced = () => {},
     onFoodCollected = () => {},
     onEatFood = () => false,
+    onBlockChanged = () => {},
   }) {
     this.scene = scene;
     this.camera = camera;
@@ -38,6 +39,7 @@ export class InteractionController {
     this.onBlockPlaced = onBlockPlaced || (() => {});
     this.onFoodCollected = onFoodCollected || (() => {});
     this.onEatFood = onEatFood || (() => false);
+    this.onBlockChanged = onBlockChanged || (() => {});
 
     this.target = null;
     this._lastActionTime = -Infinity;
@@ -166,6 +168,11 @@ export class InteractionController {
       magnet ? 10 : 8,
       magnet,
     );
+    try {
+      this.onBlockChanged({ x: target.x, y: target.y, z: target.z, id: BLOCK_IDS.AIR, previousId: target.id });
+    } catch (error) {
+      console.warn('[美味特工队] 方块同步失败：', error);
+    }
     if (magnet) this.audio?.playMagnet();
     if (isFoodBlock(target.id)) {
       try {
@@ -233,6 +240,11 @@ export class InteractionController {
 
     this.audio?.playPlace();
     this._spawnParticles(destX, placement.y + 0.92, destZ, getBlockColor(selected), 6, false);
+    try {
+      this.onBlockChanged({ x: placement.x, y: placement.y, z: placement.z, id: selected, previousId: existing });
+    } catch (error) {
+      console.warn('[美味特工队] 方块同步失败：', error);
+    }
     try {
       this.onBlockPlaced({
         blockId: selected,

@@ -1,0 +1,53 @@
+/* 溪谷书屋任务与探索手账 */
+.journal-pill { cursor: pointer; pointer-events: auto; }
+.journal-pill i { font-style: normal; color: #b06a00; }
+.library-quest-chip {
+  display: flex; align-items: center; gap: 7px; margin-top: 8px;
+  padding: 7px 10px; border: 2px solid rgba(142, 220, 170, .75);
+  border-radius: 9px; background: rgba(255, 252, 233, .92);
+  color: #38534a; box-shadow: 0 3px 0 rgba(97, 133, 101, .18);
+  width: fit-content; max-width: 100%;
+}
+.library-quest-chip.is-hidden { display: none; }
+.library-quest-chip[role="button"] { cursor: pointer; pointer-events: auto; }
+.library-quest-chip[role="button"]:focus-visible { outline: 3px solid #6fb980; outline-offset: 2px; }
+.library-quest-icon { font-size: 20px; }
+.library-quest-chip strong { display: block; font-size: 12px; }
+.library-quest-chip small { display: block; margin-top: 2px; color: #7b8d80; font-size: 10px; }
+.journal-card { max-width: 560px; }
+.journal-lead { margin: 0 0 12px; color: #70687a; font-size: 13px; line-height: 1.65; }
+.journal-list { display: grid; gap: 8px; max-height: 42vh; overflow: auto; padding-right: 4px; }
+.journal-entry { display: flex; gap: 9px; padding: 9px 10px; border: 1px solid #e8ddca; border-radius: 9px; background: #fffdf5; }
+.journal-entry-icon { font-size: 18px; line-height: 1.2; }
+.journal-entry strong { display: block; color: #4f435c; font-size: 12px; }
+.journal-entry p { margin: 3px 0 0; color: #7c7284; font-size: 11px; line-height: 1.55; }
+.journal-entry time { display: block; margin-top: 3px; color: #b5a9b6; font-size: 9px; }
+.journal-empty { padding: 24px 12px; color: #9b8fa0; text-align: center; font-size: 12px; }
+.library-card { max-width: 720px; }
+.library-lead { margin: 0 0 12px; color: #70687a; font-size: 13px; line-height: 1.7; }
+.library-pages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.library-page-card {
+  position: relative; min-height: 170px; padding: 11px; border: 2px solid #e4d3b0;
+  border-radius: 8px; background: #fff9e6; color: #53452f; text-align: left;
+  font: inherit; cursor: pointer; box-shadow: 0 3px 0 #d8c39e; transition: transform .12s, border-color .12s;
+}
+.library-page-card:hover { transform: translateY(-2px); border-color: #b7d9a5; }
+.library-page-card.is-picked { border-color: #62a86c; background: #f2ffe9; }
+.library-page-card .page-number { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #ead9b7; color: #7d6842; font-size: 10px; font-weight: 800; }
+.library-page-card h3 { margin: 8px 0 6px; font-size: 12px; line-height: 1.45; }
+.library-page-card p { margin: 0; font-size: 11px; line-height: 1.65; }
+.library-order { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #796b82; font-size: 12px; }
+.library-order b { color: #4d7d5a; }
+.library-hint { min-height: 20px; margin: 8px 0; color: #a5774f; font-size: 12px; }
+.library-hint.is-good { color: #378a5c; }
+.library-hint.is-bad { color: #b35a45; }
+.library-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.library-card.is-complete .library-pages { opacity: .62; }
+.library-reward { padding: 12px; border: 2px dashed #8dc89c; border-radius: 9px; background: #f1fff0; color: #3d6f4d; font-size: 13px; line-height: 1.7; }
+@media (max-width: 620px) {
+  .library-pages { grid-template-columns: 1fr; max-height: 46vh; overflow: auto; }
+  .library-page-card { min-height: 0; }
+  .library-actions { flex-wrap: wrap; }
+  .journal-pill b { font-size: 0; }
+  .journal-pill b i { font-size: 11px; }
+}

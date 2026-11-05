@@ -13,8 +13,11 @@ import { Inventory, MAGNET_SLOT_INDEX } from './inventory.js';
 import { GameAudio } from './audio.js';
 import { SaveManager } from './save.js';
 import { GalleryManager } from './gallery.js';
-import { NetherRealm } from './nether.js';
+import { EmberRealm } from './ember.js';
 import { SkyCityRealm } from './skycity.js';
+import { MultiplayerClient } from './multiplayer.js';
+import { ExplorationJournal } from './journal.js';
+import { LibraryQuest } from './library-quest.js';
 import {
   DEFAULT_VISUAL_THEME_ID,
   VISUAL_THEME_STORAGE_KEY,
@@ -37,6 +40,7 @@ const state = {
   portalHintShown: false,
   skyFoodQuest: { burger: false, fries: false, popcorn: false },
   skyGame: { active: false, started: false, cores: 0, ready: false, completed: false },
+  multiplayerConfig: null,
   themeResumeOnClose: false,
 };
 
@@ -150,6 +154,19 @@ window.__gameBooted = true;
 
 document.getElementById('btn-mobile-fly')?.addEventListener('click', () => toggleFlight());
 document.getElementById('btn-mobile-view')?.addEventListener('click', () => toggleCameraView());
+document.getElementById('btn-journal')?.addEventListener('click', () => state.game?.journal?.open());
+document.getElementById('library-quest-chip')?.addEventListener('click', () => state.game?.libraryQuest?.openPuzzle());
+document.getElementById('library-quest-chip')?.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); state.game?.libraryQuest?.openPuzzle(); } });
+document.getElementById('btn-multiplayer')?.addEventListener('click', () => openMultiplayerModal());
+document.getElementById('btn-mp-close')?.addEventListener('click', () => closeMultiplayerModal());
+document.getElementById('btn-mp-create')?.addEventListener('click', () => createMultiplayerRoom());
+document.getElementById('btn-mp-join')?.addEventListener('click', () => joinMultiplayerRoom());
+document.getElementById('btn-next')?.addEventListener('click', () => { state.multiplayerConfig = null; });
+document.getElementById('btn-continue')?.addEventListener('click', () => { state.multiplayerConfig = null; });
+document.getElementById('mp-panel')?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-mp-chat]');
+  if (button) state.game?.multiplayer?.sendChat(button.dataset.mpChat || '');
+});
 document.getElementById('btn-mobile-map')?.addEventListener('click', () => openWorldMap());
 document.getElementById('btn-mobile-inventory')?.addEventListener('click', () => openInventory());
 document.getElementById('btn-mobile-spawn')?.addEventListener('click', () => returnToMainSpawn());
@@ -316,6 +333,9 @@ window.__MEIWEI_DEBUG__ = {
             techCity: state.game.world.techCity || null,
             geodes: (state.game.world.geodes || []).slice(0, 12),
             ruinedPortal: state.game.overworldWorld?.ruinedPortal || state.game.world.ruinedPortal || null,
+            library: state.game.overworldWorld?.valleyLibrary || state.game.world.valleyLibrary || null,
+            libraryQuest: state.game.libraryQuest?.getState() || null,
+            journal: state.game.journal?.getEntries() || [],
             skyPortal: state.game.overworldWorld?.skyPortal || state.game.world.skyPortal || null,
             sky: state.game.sky ? {
               spawn: { ...state.game.sky.spawn },
@@ -326,19 +346,25 @@ window.__MEIWEI_DEBUG__ = {
             } : null,
             skyFoodQuest: { ...state.skyFoodQuest },
             skyGame: { ...state.skyGame },
-            nether: state.game.nether
+            multiplayer: state.game.multiplayer ? {
+              id: state.game.multiplayer.id,
+              connected: state.game.multiplayer.connected,
+              players: [...state.game.multiplayer.players.values()].map((p) => ({ id: p.id, name: p.name, dimension: p.dimension, x: p.x, y: p.y, z: p.z })),
+              remoteCount: state.game.multiplayer.remotePlayers.size,
+            } : null,
+            ember: state.game.ember
               ? {
-                  mobs: state.game.nether.mobs.length,
-                  mobTypes: state.game.nether.mobs.reduce((acc, mob) => {
+                  mobs: state.game.ember.mobs.length,
+                  mobTypes: state.game.ember.mobs.reduce((acc, mob) => {
                     const type = mob.userData.type || 'unknown';
                     acc[type] = (acc[type] || 0) + 1;
                     return acc;
                   }, {}),
-                  returnPortal: { ...state.game.nether.returnPortal },
+                  returnPortal: { ...state.game.ember.returnPortal },
                   blocks: [9, 40, 50, 51, 52].reduce((acc, id) => {
                     let count = 0;
-                    for (let i = 0; i < state.game.nether.data.length; i += 1) {
-                      if (state.game.nether.data[i] === id) count += 1;
+                    for (let i = 0; i < state.game.ember.data.length; i += 1) {
+                      if (state.game.ember.data[i] === id) count += 1;
                     }
                     acc[id] = count;
                     return acc;
@@ -386,9 +412,141 @@ window.__MEIWEI_DEBUG__ = {
 /* 启动流程                                                            */
 /* ------------------------------------------------------------------ */
 
+
+function defaultMultiplayerServer() {
+  const fromQuery = new URLSearchParams(window.location.search).get('mp');
+  if (fromQuery) return fromQuery.replace(/\/$/, '');
+  try {
+    const saved = window.localStorage.getItem('meiwei-mp-server');
+    if (saved) return saved.replace(/\/$/, '');
+    const name = window.localStorage.getItem('meiwei-player-name');
+    if (name) document.getElementById('mp-name').value = name;
+  } catch (error) {}
+  if (window.location.protocol === 'file:') return '';
+  if (window.location.hostname.endsWith('github.io')) return '';
+  return window.location.origin;
+}
+
+function openMultiplayerModal() {
+  const overlay = document.getElementById('overlay-multiplayer');
+  if (!overlay) return;
+  const server = document.getElementById('mp-server');
+  if (server && !server.value) server.value = defaultMultiplayerServer();
+  overlay.classList.remove('is-hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('mp-status').className = 'mp-status';
+  document.getElementById('mp-status').textContent = '创建房间后会得到一个房间码。';
+  setTimeout(() => document.getElementById('mp-name')?.focus({ preventScroll: true }), 40);
+}
+
+function closeMultiplayerModal() {
+  const overlay = document.getElementById('overlay-multiplayer');
+  overlay?.classList.add('is-hidden');
+  overlay?.setAttribute('aria-hidden', 'true');
+}
+
+function multiplayerFormValues() {
+  const name = document.getElementById('mp-name')?.value.trim() || '小特工';
+  const server = (document.getElementById('mp-server')?.value || defaultMultiplayerServer()).trim().replace(/\/$/, '');
+  const room = (document.getElementById('mp-room')?.value || '').trim().toUpperCase();
+  return { name, server, room };
+}
+
+async function createMultiplayerRoom() {
+  const { name, server } = multiplayerFormValues();
+  const status = document.getElementById('mp-status');
+  if (!server) {
+    status.className = 'mp-status is-error';
+    status.textContent = '请先填写联机服务器地址，例如 https://你的服务.com。';
+    return;
+  }
+  status.className = 'mp-status';
+  status.textContent = '正在创建房间……';
+  try {
+    const response = await fetch(`${server}/api/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!response.ok) throw new Error('server');
+    const data = await response.json();
+    state.multiplayerConfig = { serverBase: server, room: data.code, seed: data.seed, playerName: name };
+    try { window.localStorage.setItem('meiwei-mp-server', server); window.localStorage.setItem('meiwei-player-name', name); } catch (error) {}
+    status.className = 'mp-status is-good';
+    document.getElementById('mp-room').value = data.code;
+    status.textContent = `房间 ${data.code} 创建成功！正在进入选角……`;
+    ui.toastMessage(`🌐 房间码：${data.code}，把它发给朋友吧！`, 'good', 5200);
+    setTimeout(() => { closeMultiplayerModal(); ui.showScreen('select'); }, 850);
+  } catch (error) {
+    status.className = 'mp-status is-error';
+    status.textContent = '创建失败：检查服务器地址、网络或服务是否启动。';
+  }
+}
+
+async function joinMultiplayerRoom() {
+  const { name, server, room } = multiplayerFormValues();
+  const status = document.getElementById('mp-status');
+  if (!server || !room) {
+    status.className = 'mp-status is-error';
+    status.textContent = '请填写服务器地址和 6 位房间码。';
+    return;
+  }
+  status.className = 'mp-status';
+  status.textContent = '正在加入房间……';
+  try {
+    const response = await fetch(`${server}/api/rooms/${encodeURIComponent(room)}`);
+    if (!response.ok) throw new Error('not found');
+    const data = await response.json();
+    state.multiplayerConfig = { serverBase: server, room: data.code, seed: data.seed, playerName: name };
+    try { window.localStorage.setItem('meiwei-mp-server', server); window.localStorage.setItem('meiwei-player-name', name); } catch (error) {}
+    status.className = 'mp-status is-good';
+    document.getElementById('mp-room').value = data.code;
+    status.textContent = `已找到房间 ${data.code}，正在进入选角……`;
+    setTimeout(() => { closeMultiplayerModal(); ui.showScreen('select'); }, 650);
+  } catch (error) {
+    status.className = 'mp-status is-error';
+    status.textContent = '没有找到这个房间，检查房间码和服务器地址。';
+  }
+}
+
+function setupMultiplayerPanel(config) {
+  const panel = document.getElementById('mp-panel');
+  if (!panel) return;
+  panel.classList.remove('is-hidden');
+  document.getElementById('mp-room-label').textContent = `房间 ${config.room}`;
+  document.getElementById('mp-player-count').textContent = '1 人';
+  document.getElementById('mp-messages').replaceChildren();
+  appendMultiplayerChat({ name: '系统', text: '联机房间已打开，邀请朋友输入房间码吧。', system: true });
+}
+
+function renderMultiplayerPlayers(players) {
+  const list = document.getElementById('mp-player-list');
+  if (!list) return;
+  document.getElementById('mp-player-count').textContent = `${players.length} 人`;
+  list.textContent = players.map((p) => p.name).join(' · ');
+}
+
+function appendMultiplayerChat(message) {
+  const box = document.getElementById('mp-messages');
+  if (!box || !message) return;
+  const line = document.createElement('div');
+  line.textContent = message.system ? message.text : `${message.name}：${message.text}`;
+  box.appendChild(line);
+  while (box.children.length > 4) box.firstElementChild.remove();
+}
+
+function updateMultiplayerStatus(status) {
+  if (status === 'closed') ui.toastMessage('联机连接断开了。', 'warn', 3000);
+  if (status === 'error') ui.toastMessage('联机服务器没有回应。', 'warn', 3000);
+}
+
+function onMultiplayerWelcome(game, info) {
+  renderMultiplayerPlayers(info.players);
+  for (const message of info.chat) appendMultiplayerChat(message);
+  game.multiplayer?.applyDimensionBlocks(game.dimension);
+  ui.toastMessage(`🌐 已进入房间，当前有 ${info.players.length} 位特工。`, 'good', 3000);
+}
+
 async function startAdventure(character, options = {}) {
   if (!character || state.starting) return;
-  const saveData = options.saveData || null;
+  const multiplayerConfig = options.multiplayer || state.multiplayerConfig || null;
+  const saveData = multiplayerConfig ? null : (options.saveData || null);
   state.starting = true;
   state.retryMode = null;
   state.saveErrorShown = false;
@@ -524,7 +682,9 @@ async function startAdventure(character, options = {}) {
 
     const seedParam = Number(new URLSearchParams(window.location.search).get('seed'));
     let seed = GAME_CONFIG.worldSeed;
-    if (saveData) {
+    if (multiplayerConfig?.seed) {
+      seed = Number(multiplayerConfig.seed) >>> 0;
+    } else if (saveData) {
       seed = saveData.seed;
     } else if (Number.isFinite(seedParam) && seedParam > 0) {
       seed = seedParam;
@@ -645,6 +805,7 @@ async function startAdventure(character, options = {}) {
       },
       onFoodCollected: (blockId) => collectSkyFood(blockId),
       onEatFood: (blockId) => eatSkyFood(blockId),
+      onBlockChanged: (change) => state.game?.multiplayer?.sendBlock(change),
     });
 
     minimap = new Minimap({
@@ -691,8 +852,11 @@ async function startAdventure(character, options = {}) {
       visualTheme,
       three: THREE,
       dimension: 'overworld',
-      nether: null,
+      ember: null,
       sky: null,
+      multiplayer: null,
+      journal: null,
+      libraryQuest: null,
       overworldWorld: null,
       overworldReturn: null,
       overworldScene: null,
@@ -738,6 +902,41 @@ async function startAdventure(character, options = {}) {
     state.paused = true;
     state.pausedReason = 'tutorial';
 
+    game.journal = new ExplorationJournal({ game });
+    game.journal.restore(saveData?.journal);
+    if (world.valleyLibrary) {
+      game.libraryQuest = new LibraryQuest({
+        game, scene, ui, journal: game.journal, library: world.valleyLibrary,
+        callbacks: {
+          onProgress: () => persistGame('library', { silent: true }),
+          onComplete: () => persistGame('library', { silent: true }),
+        },
+      });
+      game.libraryQuest.restore(saveData?.libraryQuest);
+    }
+
+    if (multiplayerConfig) {
+      game.multiplayer = new MultiplayerClient({
+        game,
+        room: multiplayerConfig.room,
+        playerName: multiplayerConfig.playerName,
+        characterId: character.id,
+        serverBase: multiplayerConfig.serverBase,
+        callbacks: {
+          onWelcome: (info) => onMultiplayerWelcome(game, info),
+          onPlayers: (players) => renderMultiplayerPlayers(players),
+          onChat: (message) => appendMultiplayerChat(message),
+          onStatus: (status) => updateMultiplayerStatus(status),
+        },
+      });
+      setupMultiplayerPanel(multiplayerConfig);
+      game.multiplayer.connect().then(() => {
+        appendMultiplayerChat({ name: '系统', text: `已进入房间 ${multiplayerConfig.room}`, system: true });
+      }).catch((error) => {
+        ui.toastMessage('联机没有连上，先检查服务器地址和房间码。', 'warn', 4200);
+        console.warn('[多人] 连接失败', error);
+      });
+    }
     ui.showScreen('game');
     resizeGame();
     updateHUD(game);
@@ -838,7 +1037,7 @@ function tick(now) {
     game.player.update(delta);
     game.world.update(delta, game.player.position);
     game.interaction.update(delta);
-    if (game.dimension === 'nether') {
+    if (game.dimension === 'ember') {
       ui.setUnderwater(false);
     } else if (game.dimension === 'sky') {
       game.scene.traverse((object) => {
@@ -859,6 +1058,8 @@ function tick(now) {
       ui.setUnderwater(game.player.headInWater);
       updateAdaptiveQuality(game, rawDelta);
     }
+    game.multiplayer?.update(delta);
+    game.libraryQuest?.update(delta);
     updatePortalTransition(game, rawDelta);
   } else {
     game.interaction.hideTarget();
@@ -897,7 +1098,7 @@ function updatePortalTransition(game, delta) {
     if (game.world.ruinedPortal) {
       const ruined = game.world.ruinedPortal;
       targets.push({
-        kind: 'nether',
+        kind: 'ember',
         x: ruined.x,
         y: ruined.baseY,
         z: ruined.z,
@@ -925,13 +1126,13 @@ function updatePortalTransition(game, delta) {
       state.portalDwell = 0;
       return;
     }
-  } else if (game.dimension === 'nether' && game.nether) {
+  } else if (game.dimension === 'ember' && game.ember) {
     portal = {
-      x: game.nether.returnPortal.x,
-      y: game.nether.returnPortal.y,
-      z: game.nether.returnPortal.z,
-      minY: game.nether.returnPortal.y,
-      maxY: game.nether.returnPortal.y + 5,
+      x: game.ember.returnPortal.x,
+      y: game.ember.returnPortal.y,
+      z: game.ember.returnPortal.z,
+      minY: game.ember.returnPortal.y,
+      maxY: game.ember.returnPortal.y + 5,
     };
   } else if (game.dimension === 'sky' && game.sky) {
     portal = {
@@ -963,8 +1164,8 @@ function updatePortalTransition(game, delta) {
     state.portalDwell = 0;
     if (game.dimension === 'overworld') {
       if (portal.kind === 'sky') enterSkyCity(game);
-      else enterNether(game);
-    } else if (game.dimension === 'nether') exitNether(game);
+      else enterEmber(game);
+    } else if (game.dimension === 'ember') exitEmber(game);
     else if (game.dimension === 'sky') exitSkyCity(game);
   }
 }
@@ -980,10 +1181,10 @@ function setAvatarMeshesVisible(game, visible) {
   else if (!avatar.parent) game.scene.add(avatar);
 }
 
-function enterNether(game) {
-  if (!game || game.dimension === 'nether') return;
-  if (!game.nether) {
-    game.nether = new NetherRealm({ scene: game.scene, theme: game.visualTheme });
+function enterEmber(game) {
+  if (!game || game.dimension === 'ember') return;
+  if (!game.ember) {
+    game.ember = new EmberRealm({ scene: game.scene, theme: game.visualTheme });
   }
   const portal = game.world.ruinedPortal;
   game.overworldWorld = game.world;
@@ -1003,36 +1204,40 @@ function enterNether(game) {
   if (game.world.waterfallVisual) game.world.waterfallVisual.visible = false;
   game.animals.group.visible = false;
   game.environment.setVisible(false);
-  game.nether.setVisible(true);
+  game.ember.setVisible(true);
   game.scene.background = new game.three.Color('#160407');
   game.scene.fog = new game.three.Fog('#54120d', 10, 52);
-  game.world = game.nether;
-  game.dimension = 'nether';
-  game.player.world = game.nether;
-  game.interaction.world = game.nether;
+  game.world = game.ember;
+  game.dimension = 'ember';
+  game.multiplayer?.sendDimension();
+  game.multiplayer?.applyDimensionBlocks('ember');
+  game.player.world = game.ember;
+  game.interaction.world = game.ember;
   game.player.setFlying(false);
   game.player.setCameraMode('first');
   setAvatarMeshesVisible(game, false);
-  game.player.teleport(game.nether.spawn.x, game.nether.spawn.y, game.nether.spawn.z);
+  game.player.teleport(game.ember.spawn.x, game.ember.spawn.y, game.ember.spawn.z);
   game.player.yaw = 0;
   game.interaction.hideTarget();
-  document.body.dataset.dimension = 'nether';
+  document.body.dataset.dimension = 'ember';
   ui.setMinimapVisible(false);
-  ui.toastMessage('🔥 穿过传送门，来到了下界。走回紫色传送门可以回家。', 'good', 4800);
+  ui.toastMessage('🔥 穿过传送门，来到了烬狱。走回紫色传送门可以回家。', 'good', 4800);
   state.portalCooldown = 1.2;
   state.portalHintShown = false;
   updateHUD(game);
 }
 
-function exitNether(game) {
-  if (!game || game.dimension !== 'nether' || !game.overworldWorld) return;
-  game.nether.setVisible(false);
+function exitEmber(game) {
+  if (!game || game.dimension !== 'ember' || !game.overworldWorld) return;
+  game.ember.setVisible(false);
   game.scene.background = game.overworldScene?.background || null;
   game.scene.fog = game.overworldScene?.fog || null;
   game.environment.setVisible(true);
   game.environment.setTheme(game.visualTheme);
   game.world = game.overworldWorld;
   game.dimension = 'overworld';
+  game.multiplayer?.sendDimension();
+  game.multiplayer?.applyDimensionBlocks('overworld');
   game.player.world = game.world;
   game.interaction.world = game.world;
   game.player.setSpawn(game.world.spawn);
@@ -1049,11 +1254,11 @@ function exitNether(game) {
   game.interaction.hideTarget();
   document.body.dataset.dimension = 'overworld';
   ui.setMinimapVisible(false);
-  ui.toastMessage('🌿 回到主世界啦！下界的冒险先记在这里。', 'good', 3800);
+  ui.toastMessage('🌿 回到主世界啦！烬狱的冒险先记在这里。', 'good', 3800);
   state.portalCooldown = 2.5;
   state.portalHintShown = false;
   updateHUD(game);
-  persistGame('nether-return', { silent: true });
+  persistGame('ember-return', { silent: true });
 }
 
 function enterSkyCity(game) {
@@ -1079,6 +1284,8 @@ function enterSkyCity(game) {
   game.scene.fog = new game.three.Fog('#c3edff', 28, 105);
   game.world = game.sky;
   game.dimension = 'sky';
+  game.multiplayer?.sendDimension();
+  game.multiplayer?.applyDimensionBlocks('sky');
   game.player.world = game.sky;
   game.interaction.world = game.sky;
   game.player.setFlying(false);
@@ -1105,6 +1312,8 @@ function exitSkyCity(game) {
   game.environment.setTheme(game.visualTheme);
   game.world = game.overworldWorld;
   game.dimension = 'overworld';
+  game.multiplayer?.sendDimension();
+  game.multiplayer?.applyDimensionBlocks('overworld');
   game.player.world = game.world;
   game.interaction.world = game.world;
   game.player.setSpawn(game.world.spawn);
@@ -1193,13 +1402,13 @@ function toggleCameraView() {
 
 function updateHUD(game) {
   const position = game.player.position;
-  const inNether = game.dimension === 'nether';
+  const inEmber = game.dimension === 'ember';
   const inSky = game.dimension === 'sky';
   const surfaceY = game.world.heightAt(position.x, position.z);
-  const underground = !inNether && !inSky && position.y < surfaceY - 3;
-  const inTechCity = !inNether && !inSky && !underground && game.world.isInTechCity(position.x, position.z);
-  const biome = inNether
-    ? { emoji: '🔥', name: '下界' }
+  const underground = !inEmber && !inSky && position.y < surfaceY - 3;
+  const inTechCity = !inEmber && !inSky && !underground && game.world.isInTechCity(position.x, position.z);
+  const biome = inEmber
+    ? { emoji: '🔥', name: '烬狱' }
     : inSky
       ? { emoji: '☁️', name: '云上科技城' }
       : underground
@@ -1216,9 +1425,9 @@ function updateHUD(game) {
     fps: game.fps,
     position,
     biome: `${biome.emoji} ${biome.name}`,
-    time: inNether || inSky ? '—' : timeState.time,
-    weather: inNether ? '下界' : inSky ? '云上' : timeState.weather,
-    weatherEmoji: inNether ? '🔥' : inSky ? '☁️' : timeState.weatherEmoji,
+    time: inEmber || inSky ? '—' : timeState.time,
+    weather: inEmber ? '烬狱' : inSky ? '云上' : timeState.weather,
+    weatherEmoji: inEmber ? '🔥' : inSky ? '☁️' : timeState.weatherEmoji,
     chunks: game.world.getLoadedChunkCount(),
     character: game.character,
   });
@@ -1248,6 +1457,9 @@ function updateWaypoint(game) {
   }
   for (const geode of game.world.geodes || []) {
     geodeTargets.push({ label: '💎 紫水晶洞', x: geode.x, z: geode.z });
+  }
+  if (game.world.valleyLibrary) {
+    entranceTargets.push({ label: '📚 溪谷书屋', x: game.world.valleyLibrary.x, z: game.world.valleyLibrary.z });
   }
   if (game.world.ruinedPortal) {
     geodeTargets.push({
@@ -1372,8 +1584,8 @@ function handlePointerLockError({ message }) {
 function returnToMainSpawn() {
   const game = state.game;
   if (!game) return;
-  if (game.dimension === 'nether') {
-    exitNether(game);
+  if (game.dimension === 'ember') {
+    exitEmber(game);
     game.player.teleport(game.world.spawn.x, game.world.spawn.y, game.world.spawn.z);
     game.player.yaw = 0;
     state.portalCooldown = 3;
@@ -1392,6 +1604,11 @@ function returnToMainSpawn() {
 }
 
 function handleGlobalKeyDown(event) {
+  if (event.code === 'Escape' && !document.getElementById('overlay-multiplayer')?.classList.contains('is-hidden')) {
+    closeMultiplayerModal();
+    event.preventDefault();
+    return;
+  }
   if (event.code === 'Escape' && ui.isThemeOpen()) {
     ui.hideThemePicker();
     event.preventDefault();
@@ -1407,8 +1624,24 @@ function handleGlobalKeyDown(event) {
     event.preventDefault();
     return;
   }
+  if (event.code === 'Escape' && state.game?.journal?.isOpen()) {
+    state.game.journal.close();
+    event.preventDefault();
+    return;
+  }
+  if (event.code === 'Escape' && state.game?.libraryQuest && !document.getElementById('overlay-library')?.classList.contains('is-hidden')) {
+    state.game.libraryQuest.closePuzzle();
+    event.preventDefault();
+    return;
+  }
   if (isTypingTarget(event.target)) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+  if (event.code === 'KeyJ' && state.game && document.body.dataset.screen === 'game') {
+    state.game.journal?.open();
+    event.preventDefault();
+    return;
+  }
 
   if (event.code === 'Enter' && state.game?.dimension === 'overworld') {
     let selected = state.game.inventory.getSelectedSlot();
@@ -1538,7 +1771,7 @@ function handleGlobalKeyDown(event) {
     if (event.repeat) return;
     if (state.paused) return;
     if (state.game?.dimension && state.game.dimension !== 'overworld') {
-      ui.toastMessage('下界没有天气变化，只有岩浆和红雾。', 'info', 2200);
+      ui.toastMessage('烬狱没有天气变化，只有岩浆和红雾。', 'info', 2200);
       event.preventDefault();
       return;
     }
@@ -1552,7 +1785,7 @@ function handleGlobalKeyDown(event) {
   if (event.code === 'KeyM') {
     if (event.repeat) return;
     if (state.game?.dimension && state.game.dimension !== 'overworld') {
-      ui.toastMessage('下界看不到主世界地图，先走回传送门吧。', 'info', 2600);
+      ui.toastMessage('烬狱看不到主世界地图，先走回传送门吧。', 'info', 2600);
       event.preventDefault();
       return;
     }
@@ -1571,7 +1804,7 @@ function handleGlobalKeyDown(event) {
     if (event.repeat) return;
     if (state.paused) return;
     if (state.game?.dimension && state.game.dimension !== 'overworld') {
-      ui.toastMessage('下界里小地图会迷失方向。', 'info', 2200);
+      ui.toastMessage('烬狱里小地图会迷失方向。', 'info', 2200);
       event.preventDefault();
       return;
     }
@@ -1718,7 +1951,7 @@ function showMagnetHintIfNeeded() {
 
 function createSaveData() {
   const game = state.game;
-  if (!game || (game.dimension && game.dimension !== 'overworld')) return null;
+  if (!game || game.multiplayer || (game.dimension && game.dimension !== 'overworld')) return null;
   return {
     version: 1,
     savedAt: new Date().toISOString(),
@@ -1736,6 +1969,8 @@ function createSaveData() {
       selectedIndex: game.inventory.selectedIndex,
     },
     quests: game.quests.getSaveData(),
+    journal: game.journal?.getSaveData() || null,
+    libraryQuest: game.libraryQuest?.getSaveData() || null,
     world: {
       modifications: game.world.getModifiedBlocks(),
     },
@@ -1772,6 +2007,7 @@ function refreshHomeSaveUI() {
 
 function persistGame(reason = 'auto', { silent = false } = {}) {
   if (!state.game) return false;
+  if (state.game.multiplayer) return false;
   if (state.game.dimension && state.game.dimension !== 'overworld') return false;
   const data = createSaveData();
   const result = saveManager.writeSave(data);
@@ -1814,6 +2050,10 @@ function continueSavedGame() {
 }
 
 function exportSavedGame() {
+  if (state.game?.multiplayer) {
+    ui.toastMessage('多人房间由服务器保存，不能导出为单人存档。', 'info', 3000);
+    return;
+  }
   if (state.game?.dimension && state.game.dimension !== 'overworld') {
     ui.toastMessage('先回到主世界再导出存档吧。', 'info', 2600);
     return;
@@ -2079,7 +2319,7 @@ function eatSkyFood(blockId) {
 function openWorldMap() {
   if (!state.game || state.paused) return;
   if (state.game.dimension && state.game.dimension !== 'overworld') {
-    ui.toastMessage('下界看不到主世界地图，先走回传送门吧。', 'info', 2600);
+    ui.toastMessage('烬狱看不到主世界地图，先走回传送门吧。', 'info', 2600);
     return;
   }
   state.paused = true;
@@ -2241,7 +2481,7 @@ function cleanupGame() {
   const game = state.game;
   if (!game) return;
   stopGameLoop();
-  cleanupPartial({ ...game, world: game.overworldWorld || game.world, nether: game.nether, sky: game.sky });
+  cleanupPartial({ ...game, world: game.overworldWorld || game.world, ember: game.ember, sky: game.sky, multiplayer: game.multiplayer });
   state.game = null;
 }
 
@@ -2249,8 +2489,11 @@ function cleanupPartial({
   renderer,
   scene,
   world,
-  nether,
+  ember,
   sky,
+  multiplayer,
+  journal,
+  libraryQuest,
   environment,
   player,
   interaction,
@@ -2291,14 +2534,24 @@ function cleanupPartial({
     console.warn('[美味特工队] 清理玩家时出错：', error);
   }
   try {
-    nether?.dispose();
+    ember?.dispose();
   } catch (error) {
-    console.warn('[美味特工队] 清理下界时出错：', error);
+    console.warn('[美味特工队] 清理烬狱时出错：', error);
   }
   try {
     sky?.dispose();
   } catch (error) {
     console.warn('[美味特工队] 清理云上科技城时出错：', error);
+  }
+  try {
+    multiplayer?.dispose();
+  } catch (error) {
+    console.warn('[美味特工队] 清理多人连接时出错：', error);
+  }
+  try {
+    libraryQuest?.dispose();
+  } catch (error) {
+    console.warn('[美味特工队] 清理书屋任务时出错：', error);
   }
   try {
     world?.dispose();
